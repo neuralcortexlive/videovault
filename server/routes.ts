@@ -20,7 +20,7 @@ import axios from "axios";
 import { randomUUID } from "crypto";
 
 // YouTube API key
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || 'AIzaSyBSNhXtWwrGPcqyHsvuZ0RlMZWjzbXE3Nk';
 const DOWNLOADS_DIR = path.join(os.tmpdir(), "ytmanager-downloads");
 
 // Ensure downloads directory exists

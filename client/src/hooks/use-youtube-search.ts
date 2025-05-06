@@ -26,7 +26,16 @@ export default function useYouTubeSearch() {
     isError,
     refetch 
   } = useQuery<SearchResponse>({
-    queryKey: [`/api/youtube/search?query=${query}&order=${order}`],
+    queryKey: [`/api/youtube/search`, query, order],
+    queryFn: async () => {
+      if (!query) return { items: [], pageInfo: { totalResults: 0, resultsPerPage: 0 } };
+      
+      const response = await fetch(`/api/youtube/search?query=${encodeURIComponent(query)}&order=${order}`);
+      if (!response.ok) {
+        throw new Error("Failed to search videos");
+      }
+      return response.json();
+    },
     enabled: false,
   });
   
@@ -47,7 +56,7 @@ export default function useYouTubeSearch() {
   // Load more results
   const loadMore = useCallback(async (nextPageToken: string) => {
     try {
-      const response = await fetch(`/api/youtube/search?query=${query}&order=${order}&pageToken=${nextPageToken}`);
+      const response = await fetch(`/api/youtube/search?query=${encodeURIComponent(query)}&order=${order}&pageToken=${nextPageToken}`);
       if (!response.ok) {
         throw new Error("Failed to load more results");
       }
@@ -55,7 +64,7 @@ export default function useYouTubeSearch() {
       const newData = await response.json();
       
       // Merge the new data with existing data
-      queryClient.setQueryData([`/api/youtube/search?query=${query}&order=${order}`], (oldData: any) => {
+      queryClient.setQueryData([`/api/youtube/search`, query, order], (oldData: any) => {
         if (!oldData) return newData;
         
         return {
