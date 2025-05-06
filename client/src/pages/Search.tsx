@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -10,9 +11,11 @@ import {
 import VideoCard from "@/components/VideoCard";
 import useYouTubeSearch from "@/hooks/use-youtube-search";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Search as SearchIcon } from "lucide-react";
 
 export default function Search() {
   const { 
+    search,
     results, 
     nextPageToken, 
     isLoading, 
@@ -22,6 +25,7 @@ export default function Search() {
   } = useYouTubeSearch();
   
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   
   const handleLoadMore = async () => {
     if (!nextPageToken) return;
@@ -31,14 +35,51 @@ export default function Search() {
     setIsLoadingMore(false);
   };
   
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      search(searchQuery, currentOrder);
+    }
+  };
+  
   const handleSortChange = (value: string) => {
     setOrder(value);
+    // If we have a search query, rerun the search with the new order
+    if (searchQuery.trim()) {
+      search(searchQuery, value);
+    }
   };
   
   return (
     <div>
+      <div className="flex flex-col space-y-4 mb-6">
+        <h2 className="text-2xl font-bold">Search YouTube</h2>
+        
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <div className="flex-1 relative">
+            <Input 
+              type="text" 
+              placeholder="Search for videos..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border rounded-lg"
+            />
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+              <SearchIcon className="h-5 w-5" />
+            </div>
+          </div>
+          <Button 
+            type="submit"
+            disabled={isLoading || !searchQuery.trim()} 
+            className="bg-primary hover:bg-primary/90 text-white"
+          >
+            {isLoading ? "Searching..." : "Search"}
+          </Button>
+        </form>
+      </div>
+      
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-bold">YouTube Search Results</h2>
+        <h2 className="text-lg font-bold">Results</h2>
         <div className="flex items-center">
           <span className="text-sm text-gray-500 mr-2">Sort:</span>
           <Select value={currentOrder} onValueChange={handleSortChange}>
