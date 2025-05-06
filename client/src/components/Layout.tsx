@@ -19,7 +19,7 @@ export default function Layout({ children }: LayoutProps) {
       <div className="flex flex-1">
         <Sidebar open={!isMobile || sidebarOpen} />
         
-        <main className="flex-1 p-4 md:p-6 overflow-auto pt-20 md:pt-16 pb-16 md:pb-6">
+        <main className="flex-1 p-4 md:p-6 overflow-auto pt-20 md:pt-16 pb-16 md:pb-6 ml-0 md:ml-60">
           {children}
         </main>
       </div>

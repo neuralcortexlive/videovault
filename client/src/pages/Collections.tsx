@@ -52,9 +52,9 @@ export default function Collections({ id }: CollectionsProps) {
   
   // Get videos in the current collection
   const { 
-    data: collectionVideos = [], 
+    data: collectionVideos = [] as Video[], 
     isLoading: isLoadingVideos 
-  } = useQuery({ 
+  } = useQuery<Video[]>({ 
     ...getCollectionVideos(collectionId || 0),
     enabled: !!collectionId
   });
@@ -169,7 +169,7 @@ export default function Collections({ id }: CollectionsProps) {
                 <VideoCard
                   key={video.id}
                   video={video}
-                  isDownloaded={video.isDownloaded}
+                  isDownloaded={Boolean(video.isDownloaded)}
                   showCollectionButton={false}
                 />
               ))}
