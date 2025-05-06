@@ -16,8 +16,16 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
-      search(searchQuery);
+      console.log("Header search initiated for:", searchQuery);
+      
+      // Navigate first to ensure search page component is mounted
       navigate("/search");
+      
+      // Add a slight delay to ensure components are ready
+      setTimeout(() => {
+        search(searchQuery);
+        console.log("Search function executed from header");
+      }, 100);
     }
   };
 

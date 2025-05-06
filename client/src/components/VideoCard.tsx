@@ -97,7 +97,15 @@ export default function VideoCard({
           
           <button 
             className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 bg-black bg-opacity-50 transition-opacity duration-200"
-            onClick={onPlay}
+            onClick={() => {
+              console.log("Play button clicked for video:", videoId);
+              if (onPlay) {
+                onPlay();
+              } else {
+                // If no onPlay prop, open YouTube video in a new tab
+                window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank');
+              }
+            }}
           >
             <Play className="text-white h-12 w-12" />
           </button>
@@ -124,7 +132,15 @@ export default function VideoCard({
                 <button 
                   title="Play downloaded version" 
                   className="text-[#00A551]"
-                  onClick={onPlay}
+                  onClick={() => {
+                    console.log("Small play button clicked for video:", videoId);
+                    if (onPlay) {
+                      onPlay();
+                    } else {
+                      // If no onPlay prop, open YouTube video in a new tab
+                      window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank');
+                    }
+                  }}
                 >
                   <Play className="h-5 w-5" />
                 </button>
