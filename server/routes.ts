@@ -19,8 +19,8 @@ import {
 import axios from "axios";
 import { randomUUID } from "crypto";
 
-// YouTube API key
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || 'AIzaSyBSNhXtWwrGPcqyHsvuZ0RlMZWjzbXE3Nk';
+// YouTube API key - use environment variable only
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 const DOWNLOADS_DIR = path.join(os.tmpdir(), "ytmanager-downloads");
 
 // Ensure downloads directory exists
@@ -486,14 +486,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper function to process video download
   async function processVideoDownload(taskId: number, videoInfo: ytdl.videoInfo) {
     try {
+      console.log(`Starting download process for task ${taskId}, video: ${videoInfo.videoDetails.title}`);
+      
       const task = await storage.getDownloadTask(taskId);
       if (!task) {
         console.error(`Task ${taskId} not found`);
         return;
       }
 
-      // Update task to downloading status
-      await storage.updateDownloadTask(taskId, { status: "downloading" });
+      // Update task to downloading status with initial status
+      await storage.updateDownloadTask(taskId, { 
+        status: "downloading",
+        progress: 0,
+        errorMessage: null
+      });
       
       // Broadcast status update
       broadcastDownloadProgress({
@@ -508,44 +514,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const videoFilePath = path.join(DOWNLOADS_DIR, `${fileName}-video.mp4`);
       const audioFilePath = path.join(DOWNLOADS_DIR, `${fileName}-audio.mp4`);
       const outputFilePath = path.join(DOWNLOADS_DIR, `${fileName}.mp4`);
-
-      // Select formats
-      const videoFormat = ytdl.chooseFormat(videoInfo.formats, { 
-        quality: task.quality === "highest" ? "highestvideo" : task.quality
-      });
       
-      const audioFormat = ytdl.chooseFormat(videoInfo.formats, { quality: "highestaudio" });
+      console.log(`Output files: 
+      Video: ${videoFilePath}
+      Audio: ${audioFilePath}
+      Final: ${outputFilePath}`);
+
+      // Select formats - add better error handling
+      let videoFormat: ytdl.videoFormat;
+      let audioFormat: ytdl.videoFormat;
+      
+      try {
+        videoFormat = ytdl.chooseFormat(videoInfo.formats, { 
+          quality: task.quality === "highest" ? "highestvideo" : task.quality || "highest"
+        });
+        
+        audioFormat = ytdl.chooseFormat(videoInfo.formats, { quality: "highestaudio" });
+        
+        console.log(`Selected video format: ${videoFormat.qualityLabel || videoFormat.quality}, ${videoFormat.container}`);
+        console.log(`Selected audio format: ${audioFormat.audioBitrate}kbps, ${audioFormat.container}`);
+      } catch (formatError) {
+        console.error("Format selection error:", formatError);
+        throw new Error(`Could not select video/audio formats: ${formatError.message}`);
+      }
 
       if (!videoFormat || !audioFormat) {
         throw new Error("Could not find suitable video or audio format");
       }
 
-      // Download video stream
+      // Download video stream with better error handling
       const videoStream = ytdl.downloadFromInfo(videoInfo, { format: videoFormat });
       const videoWriter = fs.createWriteStream(videoFilePath);
 
       let videoProgress = 0;
       let audioProgress = 0;
       let totalProgress = 0;
+      let lastProgressUpdate = 0;
       
       videoStream.on("progress", (chunkLength, downloaded, total) => {
+        // Only update on significant changes (every 1%) to reduce DB writes
+        const progress = Math.round((downloaded / total) * 100);
+        
+        if (progress <= lastProgressUpdate && progress < 100) return;
+        lastProgressUpdate = progress;
+        
         videoProgress = downloaded / total;
         totalProgress = (videoProgress + audioProgress) / 2 * 100;
         
-        storage.updateDownloadProgress(taskId, {
-          taskId,
-          videoId,
-          progress: Math.round(totalProgress),
-          status: "downloading",
-          size: {
-            total,
-            transferred: downloaded,
-            totalMb: (total / 1024 / 1024).toFixed(2) + " MB",
-            transferredMb: (downloaded / 1024 / 1024).toFixed(2) + " MB"
-          }
-        });
+        console.log(`Video download progress: ${Math.round(videoProgress * 100)}%, Total: ${Math.round(totalProgress)}%`);
+        
+        // Update database every 2%
+        if (Math.round(totalProgress) % 2 === 0 || Math.round(totalProgress) === 100) {
+          storage.updateDownloadProgress(taskId, {
+            taskId,
+            videoId,
+            progress: Math.round(totalProgress),
+            status: "downloading",
+            size: {
+              total,
+              transferred: downloaded,
+              totalMb: (total / 1024 / 1024).toFixed(2) + " MB",
+              transferredMb: (downloaded / 1024 / 1024).toFixed(2) + " MB"
+            }
+          }).catch(err => {
+            console.error("Failed to update download progress in DB:", err);
+          });
+        }
 
-        // Broadcast progress
+        // Always broadcast progress for real-time updates
         broadcastDownloadProgress({
           taskId,
           videoId,
@@ -562,24 +598,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       });
 
-      await pipeline(videoStream, videoWriter);
+      videoStream.on("error", (err) => {
+        console.error(`Video stream error for task ${taskId}:`, err);
+        throw new Error(`Video download failed: ${err.message}`);
+      });
+
+      try {
+        await pipeline(videoStream, videoWriter);
+        console.log("Video download complete");
+      } catch (videoError) {
+        console.error("Video pipeline error:", videoError);
+        throw new Error(`Video download failed: ${videoError.message}`);
+      }
 
       // Download audio stream
       const audioStream = ytdl.downloadFromInfo(videoInfo, { format: audioFormat });
       const audioWriter = fs.createWriteStream(audioFilePath);
-
+      
+      lastProgressUpdate = 0;
+      
       audioStream.on("progress", (chunkLength, downloaded, total) => {
+        // Only update on significant changes
+        const progress = Math.round((downloaded / total) * 100);
+        
+        if (progress <= lastProgressUpdate && progress < 100) return;
+        lastProgressUpdate = progress;
+        
         audioProgress = downloaded / total;
         totalProgress = (videoProgress + audioProgress) / 2 * 100;
         
-        storage.updateDownloadProgress(taskId, {
-          taskId,
-          videoId,
-          progress: Math.round(totalProgress),
-          status: "downloading"
-        });
+        console.log(`Audio download progress: ${Math.round(audioProgress * 100)}%, Total: ${Math.round(totalProgress)}%`);
+        
+        // Update database every 2%
+        if (Math.round(totalProgress) % 2 === 0 || Math.round(totalProgress) === 100) {
+          storage.updateDownloadProgress(taskId, {
+            taskId,
+            videoId,
+            progress: Math.round(totalProgress),
+            status: "downloading"
+          }).catch(err => {
+            console.error("Failed to update download progress in DB:", err);
+          });
+        }
 
-        // Broadcast progress
+        // Always broadcast progress
         broadcastDownloadProgress({
           taskId,
           videoId,
@@ -590,11 +652,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       });
 
-      await pipeline(audioStream, audioWriter);
+      audioStream.on("error", (err) => {
+        console.error(`Audio stream error for task ${taskId}:`, err);
+        throw new Error(`Audio download failed: ${err.message}`);
+      });
+
+      try {
+        await pipeline(audioStream, audioWriter);
+        console.log("Audio download complete");
+      } catch (audioError) {
+        console.error("Audio pipeline error:", audioError);
+        throw new Error(`Audio download failed: ${audioError.message}`);
+      }
 
       // Update status to merging
+      console.log("Starting merge process");
       await storage.updateDownloadTask(taskId, { 
-        status: "downloading", 
+        status: "processing", 
         progress: 95
       });
       
@@ -603,47 +677,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
         taskId,
         videoId,
         progress: 95,
-        status: "downloading"
+        status: "processing"
       });
 
       // Merge video and audio using ffmpeg
-      await new Promise<void>((resolve, reject) => {
-        ffmpeg()
-          .input(videoFilePath)
-          .input(audioFilePath)
-          .outputOptions(["-c:v copy", "-c:a aac"])
-          .output(outputFilePath)
-          .on("end", () => resolve())
-          .on("error", (err) => reject(err))
-          .run();
-      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          ffmpeg()
+            .input(videoFilePath)
+            .input(audioFilePath)
+            .outputOptions(["-c:v copy", "-c:a aac"])
+            .output(outputFilePath)
+            .on("start", (cmd) => {
+              console.log(`FFmpeg started with command: ${cmd}`);
+            })
+            .on("progress", (progress) => {
+              console.log(`FFmpeg progress: ${JSON.stringify(progress)}`);
+            })
+            .on("end", () => {
+              console.log("FFmpeg processing finished");
+              resolve();
+            })
+            .on("error", (err) => {
+              console.error("FFmpeg error:", err);
+              reject(new Error(`Failed to merge video and audio: ${err.message}`));
+            })
+            .run();
+        });
+      } catch (ffmpegError) {
+        console.error("FFmpeg merge failed:", ffmpegError);
+        throw ffmpegError;
+      }
 
       // Get file size
-      const stats = fs.statSync(outputFilePath);
-      const fileSize = stats.size;
+      let fileSize = 0;
+      try {
+        const stats = fs.statSync(outputFilePath);
+        fileSize = stats.size;
+        console.log(`Merged file size: ${fileSize} bytes (${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
+      } catch (statError) {
+        console.error("Error getting file stats:", statError);
+        throw new Error(`Could not get file size: ${statError.message}`);
+      }
 
       // Create/update video record
       let video = await storage.getVideoByYouTubeId(videoId);
       
       if (video) {
+        console.log(`Updating existing video record ID ${video.id}`);
         await storage.updateVideo(video.id, {
           isDownloaded: true,
           downloadPath: outputFilePath,
           fileSize,
-          quality: task.quality,
-          format: task.format,
+          quality: task.quality || "highest",
+          format: "mp4",
           downloadedAt: new Date()
         });
       } else {
         // Create video record if it doesn't exist yet
+        console.log("Creating new video record");
         const videoData = {
           videoId,
           title: task.title,
           isDownloaded: true,
           downloadPath: outputFilePath,
           fileSize,
-          quality: task.quality,
-          format: task.format,
+          quality: task.quality || "highest",
+          format: "mp4",
+          thumbnailUrl: videoInfo.videoDetails.thumbnails.length > 0 
+            ? videoInfo.videoDetails.thumbnails[videoInfo.videoDetails.thumbnails.length - 1].url 
+            : null,
+          channelTitle: videoInfo.videoDetails.author.name,
+          description: videoInfo.videoDetails.description,
+          duration: videoInfo.videoDetails.lengthSeconds,
           downloadedAt: new Date()
         };
         
@@ -652,6 +758,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If a collection was specified, add video to that collection
       if (task.collectionId) {
+        console.log(`Adding video to collection ID ${task.collectionId}`);
         await storage.addVideoToCollection(video.id, task.collectionId);
       }
 
@@ -659,6 +766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateDownloadTask(taskId, {
         status: "completed",
         progress: 100,
+        completedAt: new Date(),
         fileSize
       });
 
@@ -670,33 +778,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "completed"
       });
 
+      console.log("Download task completed successfully");
+
       // Clean up temporary files
       fs.unlink(videoFilePath, (err) => {
         if (err) console.error(`Error deleting temporary video file: ${err.message}`);
+        else console.log(`Deleted temporary video file: ${videoFilePath}`);
       });
       
       fs.unlink(audioFilePath, (err) => {
         if (err) console.error(`Error deleting temporary audio file: ${err.message}`);
+        else console.log(`Deleted temporary audio file: ${audioFilePath}`);
       });
 
     } catch (error) {
       console.error(`Error processing download task ${taskId}:`, error);
       
       // Update task with error
-      await storage.updateDownloadTask(taskId, {
-        status: "failed",
-        errorMessage: error instanceof Error ? error.message : "Unknown error",
-      });
-
-      // Broadcast error
-      const task = await storage.getDownloadTask(taskId);
-      if (task) {
-        broadcastDownloadProgress({
-          taskId,
-          videoId: task.videoId,
-          progress: task.progress,
-          status: "failed"
+      try {
+        await storage.updateDownloadTask(taskId, {
+          status: "failed",
+          errorMessage: error instanceof Error ? error.message : "Unknown error",
+          completedAt: new Date()
         });
+
+        // Broadcast error
+        const task = await storage.getDownloadTask(taskId);
+        if (task) {
+          broadcastDownloadProgress({
+            taskId,
+            videoId: task.videoId,
+            progress: task.progress || 0,
+            status: "failed"
+          });
+        }
+      } catch (updateError) {
+        console.error("Failed to update task status after error:", updateError);
       }
     }
   }

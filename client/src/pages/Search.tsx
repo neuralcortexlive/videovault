@@ -37,16 +37,25 @@ export default function Search() {
   
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
+    if (!searchQuery.trim()) return;
+    
+    console.log("Searching for:", searchQuery);
+    // Force a delay to ensure the state is updated
+    setTimeout(() => {
       search(searchQuery, currentOrder);
-    }
+    }, 100);
   };
   
   const handleSortChange = (value: string) => {
     setOrder(value);
+    
     // If we have a search query, rerun the search with the new order
     if (searchQuery.trim()) {
-      search(searchQuery, value);
+      console.log("Re-searching with new order:", value);
+      // Force a delay to ensure the state is updated
+      setTimeout(() => {
+        search(searchQuery, value);
+      }, 100);
     }
   };
   
