@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import {
   Select,
   SelectContent,
@@ -14,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search as SearchIcon } from "lucide-react";
 
 export default function Search() {
+  const { toast } = useToast();
   const { 
     search,
     results, 
@@ -26,38 +28,88 @@ export default function Search() {
   
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+  
+  // Check for query parameters on page load
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const query = urlParams.get('q');
+      if (query) {
+        console.log("Found search query in URL:", query);
+        setSearchQuery(query);
+        executeSearch(query, currentOrder);
+      }
+    } catch (error) {
+      console.error("Error reading URL parameters:", error);
+    }
+  }, []);
+  
+  // Execute search with debounce and error handling
+  const executeSearch = useCallback((query: string, orderBy: string) => {
+    if (!query?.trim()) return;
+    
+    // Disable search button temporarily to prevent multiple clicks
+    setIsButtonDisabled(true);
+    
+    try {
+      // Execute the search directly
+      search(query, orderBy);
+      
+      // Update browser history without reload
+      const url = new URL(window.location.href);
+      url.searchParams.set('q', query);
+      window.history.pushState({}, '', url);
+    } catch (error) {
+      console.error("Search execution error:", error);
+      toast({
+        title: "Search Error",
+        description: "Failed to search. Please try again.", 
+        variant: "destructive"
+      });
+    }
+    
+    // Re-enable search button after a delay
+    setTimeout(() => {
+      setIsButtonDisabled(false);
+    }, 1500);
+  }, [search, toast]);
   
   const handleLoadMore = async () => {
-    if (!nextPageToken) return;
+    if (!nextPageToken || isLoadingMore) return;
     
     setIsLoadingMore(true);
-    await loadMore(nextPageToken);
-    setIsLoadingMore(false);
-  };
-  
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    
-    console.log("Searching for:", searchQuery);
-    // Force a delay to ensure the state is updated
-    setTimeout(() => {
-      search(searchQuery, currentOrder);
-    }, 100);
-  };
-  
-  const handleSortChange = (value: string) => {
-    setOrder(value);
-    
-    // If we have a search query, rerun the search with the new order
-    if (searchQuery.trim()) {
-      console.log("Re-searching with new order:", value);
-      // Force a delay to ensure the state is updated
-      setTimeout(() => {
-        search(searchQuery, value);
-      }, 100);
+    try {
+      await loadMore(nextPageToken);
+    } catch (error) {
+      console.error("Error loading more results:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load more results. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingMore(false);
     }
   };
+  
+  const handleSearch = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!searchQuery?.trim() || isButtonDisabled) return;
+    console.log(`Search executed with query: "${searchQuery}"`);
+    
+    executeSearch(searchQuery, currentOrder);
+  }, [searchQuery, currentOrder, isButtonDisabled, executeSearch]);
+  
+  const handleSortChange = useCallback((value: string) => {
+    console.log(`Sort changed to: ${value}`);
+    setOrder(value);
+    
+    if (searchQuery?.trim()) {
+      executeSearch(searchQuery, value);
+    }
+  }, [searchQuery, setOrder, executeSearch]);
   
   return (
     <div>
@@ -79,10 +131,10 @@ export default function Search() {
           </div>
           <Button 
             type="submit"
-            disabled={isLoading || !searchQuery.trim()} 
+            disabled={isLoading || !searchQuery.trim() || isButtonDisabled} 
             className="bg-primary hover:bg-primary/90 text-white"
           >
-            {isLoading ? "Searching..." : "Search"}
+            {isLoading ? "Searching..." : (isButtonDisabled ? "Processing..." : "Search")}
           </Button>
         </form>
       </div>

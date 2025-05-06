@@ -76,35 +76,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // YouTube Search API
   app.get("/api/youtube/search", async (req, res) => {
     try {
-      const { query, maxResults = 12, order = "date" } = req.query;
+      console.log("YouTube search API called with params:", req.query);
+      const { query, maxResults = 12, order = "date", pageToken } = req.query;
       
       if (!query) {
+        console.log("Search rejected: No query parameter");
         return res.status(400).json({ message: "Query parameter is required" });
       }
 
       if (!YOUTUBE_API_KEY) {
+        console.log("Search rejected: No YouTube API key");
         return res.status(500).json({ message: "YouTube API key not configured" });
       }
 
-      const response = await axios.get("https://www.googleapis.com/youtube/v3/search", {
-        params: {
-          part: "snippet",
-          maxResults,
-          q: query,
-          type: "video",
-          order,
-          key: YOUTUBE_API_KEY
-        }
-      });
+      console.log(`Making YouTube API request for query: "${query}", order: ${order}`);
+      
+      const params: any = {
+        part: "snippet",
+        maxResults,
+        q: query,
+        type: "video",
+        order,
+        key: YOUTUBE_API_KEY
+      };
+      
+      // Add pageToken if provided for pagination
+      if (pageToken) {
+        params.pageToken = pageToken;
+      }
 
+      const response = await axios.get("https://www.googleapis.com/youtube/v3/search", { params });
+      
+      console.log(`YouTube API response successful with ${response.data.items?.length || 0} results`);
       return res.json(response.data);
     } catch (error) {
       console.error("YouTube search error:", error);
+      
       if (axios.isAxiosError(error) && error.response) {
+        console.error("YouTube API error details:", {
+          status: error.response.status,
+          data: error.response.data
+        });
+        
         return res.status(error.response.status).json({
           message: `YouTube API error: ${error.response.data.error?.message || 'Unknown error'}`
         });
       }
+      
       return res.status(500).json({ message: "Failed to search YouTube videos" });
     }
   });
