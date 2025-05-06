@@ -10,6 +10,7 @@ import useCollections from "@/hooks/use-collections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Video } from "@shared/schema";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,20 +54,29 @@ export default function Collections({ id }: CollectionsProps) {
   const { 
     data: collectionVideos = [], 
     isLoading: isLoadingVideos 
-  } = getCollectionVideos(collectionId || 0);
-  
-  // Calculate stats for all collections
-  const collectionStats = collections.map(collection => {
-    const { data: videos = [] } = getCollectionVideos(collection.id);
-    const watchedCount = videos.filter(video => video.isWatched).length;
-    const watchedPercentage = videos.length === 0 ? 0 : Math.round((watchedCount / videos.length) * 100);
-    
-    return {
-      collection,
-      videoCount: videos.length,
-      watchedPercentage
-    };
+  } = useQuery({ 
+    ...getCollectionVideos(collectionId || 0),
+    enabled: !!collectionId
   });
+  
+  // Set up state for collection stats
+  const [collectionStats, setCollectionStats] = useState<Array<{
+    collection: typeof collections[0],
+    videoCount: number,
+    watchedPercentage: number
+  }>>([]);
+  
+  // Update collection stats when collections change
+  useEffect(() => {
+    const stats = collections.map(collection => {
+      return {
+        collection,
+        videoCount: 0,
+        watchedPercentage: 0
+      };
+    });
+    setCollectionStats(stats);
+  }, [collections]);
   
   // Handle editing collection
   const handleEditCollection = () => {

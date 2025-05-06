@@ -16,26 +16,25 @@ export default function useCollections() {
     queryKey: ['/api/collections'],
   });
   
-  // Get collection by ID
+  // Get collection by ID - this is a query creator, not a direct hook
   const getCollection = (id: number) => {
-    return useQuery<Collection>({
-      queryKey: [`/api/collections/${id}`],
-      queryFn: async () => {
-        const response = await fetch(`/api/collections/${id}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch collection");
-        }
-        return await response.json();
-      },
-    });
+    const queryKey = [`/api/collections/${id}`];
+    const queryFn = async () => {
+      const response = await fetch(`/api/collections/${id}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch collection");
+      }
+      return await response.json();
+    };
+    
+    return { queryKey, queryFn };
   };
   
-  // Get videos in a collection
+  // Get videos in a collection - this is a query creator, not a direct hook
   const getCollectionVideos = (collectionId: number) => {
-    return useQuery<Video[]>({
-      queryKey: [`/api/collections/${collectionId}/videos`],
-      enabled: !!collectionId,
-    });
+    const queryKey = [`/api/collections/${collectionId}/videos`];
+    
+    return { queryKey };
   };
   
   // Create collection mutation

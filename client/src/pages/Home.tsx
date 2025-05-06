@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Plus, ChevronRight } from "lucide-react";
@@ -10,27 +10,38 @@ import CollectionModal from "@/components/CollectionModal";
 import useDownloads from "@/hooks/use-downloads";
 import useCollections from "@/hooks/use-collections";
 import { useQuery } from "@tanstack/react-query";
-import { Video } from "@shared/schema";
+import { Video, Collection } from "@shared/schema";
+
+type CollectionStat = {
+  collection: Collection;
+  videoCount: number;
+  watchedPercentage: number;
+};
 
 export default function Home() {
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const { activeDownloads, cancelDownload } = useDownloads();
-  const { collections, getCollectionVideos } = useCollections();
+  const { collections } = useCollections();
   
   // Get downloaded videos
   const { data: downloadedVideos = [] } = useQuery<Video[]>({
     queryKey: ['/api/videos/downloaded'],
   });
   
-  // Fetch videos for collections
-  const collectionStats = collections.map(collection => {
-    // Using a safer approach that doesn't dynamically call hooks
-    return {
-      collection,
-      videoCount: 0,
-      watchedPercentage: 0
-    };
-  });
+  // Initialize collection stats
+  const [collectionStats, setCollectionStats] = useState<CollectionStat[]>([]);
+  
+  // Update collection stats when collections change
+  useEffect(() => {
+    const stats = collections.map(collection => {
+      return {
+        collection,
+        videoCount: 0,
+        watchedPercentage: 0
+      };
+    });
+    setCollectionStats(stats);
+  }, [collections]);
   
   return (
     <>
