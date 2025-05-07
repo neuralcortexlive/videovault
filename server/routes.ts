@@ -222,27 +222,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { videoId } = req.params;
       
-      const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
-      const formats = info.formats
-        .filter(format => {
-          // Filter to include videos with audio or high-quality video formats
-          return format.hasAudio || (format.hasVideo && format.qualityLabel);
-        })
-        .map(format => ({
-          itag: format.itag,
-          qualityLabel: format.qualityLabel,
-          container: format.container,
-          hasVideo: format.hasVideo,
-          hasAudio: format.hasAudio,
-          codecs: format.codecs,
-          bitrate: format.bitrate,
-          audioBitrate: format.audioBitrate
-        }));
+      try {
+        const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
+        const formats = info.formats
+          .filter(format => {
+            // Filter to include videos with audio or high-quality video formats
+            return format.hasAudio || (format.hasVideo && format.qualityLabel);
+          })
+          .map(format => ({
+            itag: format.itag,
+            qualityLabel: format.qualityLabel,
+            container: format.container,
+            hasVideo: format.hasVideo,
+            hasAudio: format.hasAudio,
+            codecs: format.codecs,
+            bitrate: format.bitrate,
+            audioBitrate: format.audioBitrate
+          }));
 
-      return res.json({ formats });
+        return res.json({ formats });
+      } catch (ytdlError) {
+        console.error("ytdl-core error:", ytdlError);
+        
+        // Handle the specific "Could not extract functions" error
+        if (ytdlError.message && ytdlError.message.includes("Could not extract functions")) {
+          // Fallback to predefined formats when ytdl-core fails to extract signatures
+          const fallbackFormats = [
+            {
+              itag: 22,
+              qualityLabel: "720p",
+              container: "mp4",
+              hasVideo: true,
+              hasAudio: true,
+              codecs: "avc1.64001F, mp4a.40.2",
+              bitrate: 1500000,
+              audioBitrate: 128
+            },
+            {
+              itag: 18,
+              qualityLabel: "360p",
+              container: "mp4",
+              hasVideo: true,
+              hasAudio: true,
+              codecs: "avc1.42001E, mp4a.40.2",
+              bitrate: 500000,
+              audioBitrate: 96
+            }
+          ];
+          
+          return res.json({ 
+            formats: fallbackFormats,
+            message: "Note: Using fallback formats due to YouTube signature extraction issue."
+          });
+        }
+        
+        throw ytdlError; // Re-throw if it's a different error
+      }
     } catch (error) {
       console.error("YouTube formats error:", error);
-      return res.status(500).json({ message: "Failed to fetch video formats" });
+      return res.status(500).json({ 
+        message: "Failed to fetch video formats", 
+        error: error.message 
+      });
     }
   });
 
@@ -256,28 +297,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid download options", errors: validatedData.error });
       }
 
-      // Get video info
-      const videoInfo = await ytdl.getInfo(`https://www.youtube.com/watch?v=${downloadOptions.videoId}`);
-      const videoDetails = {
-        videoId: downloadOptions.videoId,
-        title: videoInfo.videoDetails.title,
-        format: downloadOptions.format || "mp4",
-        quality: downloadOptions.quality || "highest",
-        collectionId: downloadOptions.collectionId
-      };
+      try {
+        // Get video info
+        const videoInfo = await ytdl.getInfo(`https://www.youtube.com/watch?v=${downloadOptions.videoId}`);
+        const videoDetails = {
+          videoId: downloadOptions.videoId,
+          title: videoInfo.videoDetails.title,
+          format: downloadOptions.format || "mp4",
+          quality: downloadOptions.quality || "highest",
+          collectionId: downloadOptions.collectionId
+        };
 
-      // Create download task
-      const downloadTask = await storage.createDownloadTask(videoDetails);
+        // Create download task
+        const downloadTask = await storage.createDownloadTask(videoDetails);
 
-      // Return task immediately so client can track progress
-      res.status(201).json(downloadTask);
+        // Return task immediately so client can track progress
+        res.status(201).json(downloadTask);
 
-      // Start download process asynchronously
-      processVideoDownload(downloadTask.id, videoInfo);
-      
+        // Start download process asynchronously
+        try {
+          processVideoDownload(downloadTask.id, videoInfo);
+        } catch (processingError) {
+          console.error("Error in download processing:", processingError);
+          await storage.updateDownloadTask(downloadTask.id, { 
+            status: "failed", 
+            errorMessage: processingError.message || "Download processing failed", 
+            completedAt: new Date()
+          });
+          
+          // Broadcast error status
+          broadcastDownloadProgress({
+            taskId: downloadTask.id,
+            videoId: downloadOptions.videoId,
+            progress: 0,
+            status: "failed",
+            error: processingError.message || "Download processing failed"
+          });
+        }
+      } catch (ytdlError) {
+        console.error("ytdl-core error:", ytdlError);
+        
+        if (ytdlError.message && ytdlError.message.includes("Could not extract functions")) {
+          return res.status(500).json({ 
+            message: "YouTube download error: Signature extraction failed. This issue is typically temporary and occurs when YouTube updates their player.",
+            type: "signature_extraction_error" 
+          });
+        }
+        
+        throw ytdlError;
+      }
     } catch (error) {
       console.error("Download error:", error);
-      return res.status(500).json({ message: "Failed to start download" });
+      return res.status(500).json({ 
+        message: "Failed to start download",
+        error: error.message 
+      });
     }
   });
 

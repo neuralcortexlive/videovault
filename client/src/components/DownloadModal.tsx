@@ -106,9 +106,21 @@ export default function DownloadModal({
       
       onOpenChange(false);
     } catch (error) {
+      // Handle different error types from the API
+      let errorMessage = "Failed to start download. Please try again.";
+      
+      if (error.response && error.response.data) {
+        // If it's a signature extraction error, provide a more helpful message
+        if (error.response.data.type === "signature_extraction_error") {
+          errorMessage = "YouTube download temporarily unavailable: YouTube has updated their player code. This is a common issue with downloaders and should be fixed soon. Please try again later.";
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to start download. Please try again.",
+        title: "Download Error",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
