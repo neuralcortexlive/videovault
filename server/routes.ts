@@ -291,7 +291,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/youtube/download", async (req, res) => {
     try {
       const downloadOptions = req.body as DownloadOptions;
-      const validatedData = insertDownloadTaskSchema.safeParse(downloadOptions);
+      
+      // Create a modified download task with title included
+      const downloadTask = {
+        ...downloadOptions,
+        title: `Video ${downloadOptions.videoId}` // Add a default title to satisfy validation
+      };
+      
+      const validatedData = insertDownloadTaskSchema.safeParse(downloadTask);
       
       if (!validatedData.success) {
         return res.status(400).json({ message: "Invalid download options", errors: validatedData.error });
