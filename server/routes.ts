@@ -118,12 +118,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           data: error.response.data
         });
         
-        return res.status(error.response.status).json({
-          message: `YouTube API error: ${error.response.data.error?.message || 'Unknown error'}`
+        // Check for specific YouTube API error types
+        const errorMessage = error.response.data.error?.message || 'Unknown error';
+        const errorCode = error.response.status;
+        
+        // Handle API key related errors specifically
+        if (errorMessage.includes('API key') || errorCode === 403) {
+          return res.status(errorCode).json({
+            message: `YouTube API key error: ${errorMessage}`,
+            type: 'api_key_error'
+          });
+        }
+        
+        // Handle quota exceeded errors
+        if (errorMessage.includes('quota') || errorCode === 429) {
+          return res.status(errorCode).json({
+            message: `YouTube API quota exceeded: ${errorMessage}`,
+            type: 'quota_error'
+          });
+        }
+        
+        // Handle all other errors
+        return res.status(errorCode).json({
+          message: `YouTube API error: ${errorMessage}`,
+          type: 'api_error'
         });
       }
       
-      return res.status(500).json({ message: "Failed to search YouTube videos" });
+      return res.status(500).json({ 
+        message: "Failed to search YouTube videos", 
+        type: 'server_error' 
+      });
     }
   });
 
@@ -151,7 +176,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json(response.data.items[0]);
     } catch (error) {
       console.error("YouTube video details error:", error);
-      return res.status(500).json({ message: "Failed to fetch video details" });
+      
+      if (axios.isAxiosError(error) && error.response) {
+        console.error("YouTube API error details:", {
+          status: error.response.status,
+          data: error.response.data
+        });
+        
+        // Check for specific YouTube API error types
+        const errorMessage = error.response.data.error?.message || 'Unknown error';
+        const errorCode = error.response.status;
+        
+        // Handle API key related errors specifically
+        if (errorMessage.includes('API key') || errorCode === 403) {
+          return res.status(errorCode).json({
+            message: `YouTube API key error: ${errorMessage}`,
+            type: 'api_key_error'
+          });
+        }
+        
+        // Handle quota exceeded errors
+        if (errorMessage.includes('quota') || errorCode === 429) {
+          return res.status(errorCode).json({
+            message: `YouTube API quota exceeded: ${errorMessage}`,
+            type: 'quota_error'
+          });
+        }
+        
+        // Handle all other errors
+        return res.status(errorCode).json({
+          message: `YouTube API error: ${errorMessage}`,
+          type: 'api_error'
+        });
+      }
+      
+      return res.status(500).json({ 
+        message: "Failed to fetch video details", 
+        type: 'server_error' 
+      });
     }
   });
 

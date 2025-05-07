@@ -63,11 +63,47 @@ export default function useYouTubeSearch() {
         return data;
       } catch (error) {
         console.error("Search query error:", error);
+        
+        let errorTitle = "Search Error";
+        let errorMessage = "Failed to search videos. Please try again.";
+        
+        if (error instanceof Error) {
+          // Check if this is an API error response from our server
+          if (responseText) {
+            try {
+              const errorData = JSON.parse(responseText);
+              
+              // Check for specific error types
+              if (errorData.type === 'api_key_error' || responseText.includes('API key')) {
+                errorTitle = "YouTube API Key Error";
+                errorMessage = "The YouTube API key has expired or is invalid. Please contact the administrator.";
+              }
+              // Check for quota errors
+              else if (errorData.type === 'quota_error' || responseText.includes('quota')) {
+                errorTitle = "API Quota Exceeded";
+                errorMessage = "The YouTube API quota has been exceeded. Please try again tomorrow.";
+              }
+              // Use the error message from the API if available
+              else if (errorData.message) {
+                errorMessage = errorData.message;
+              }
+            } catch (parseErr) {
+              // If we can't parse the response, use the error message
+              errorMessage = error.message || "Unknown search error";
+            }
+          } else {
+            // Use the error message directly
+            errorMessage = error.message || "Failed to search videos";
+          }
+        }
+        
+        // Show toast notification
         toast({
-          title: "Search Error",
-          description: error instanceof Error ? error.message : "Failed to search videos",
+          title: errorTitle,
+          description: errorMessage,
           variant: "destructive"
         });
+        
         throw error;
       }
     },
