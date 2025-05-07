@@ -53,6 +53,7 @@ export const downloadTasks = pgTable("download_tasks", {
   createdAt: timestamp("created_at").defaultNow(),
   completedAt: timestamp("completed_at"),
   fileSize: integer("file_size"),
+  filePath: text("file_path"),
   collectionId: integer("collection_id").references(() => collections.id),
 });
 

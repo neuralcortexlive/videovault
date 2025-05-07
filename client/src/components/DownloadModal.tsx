@@ -192,7 +192,7 @@ export default function DownloadModal({
               <SelectValue placeholder="-- Select Collection --" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">-- Select Collection --</SelectItem>
+              <SelectItem value=" ">-- Select Collection --</SelectItem>
               {collections.map(collection => (
                 <SelectItem key={collection.id} value={collection.id.toString()}>
                   {collection.name}
