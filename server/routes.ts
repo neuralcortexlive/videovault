@@ -8,6 +8,7 @@ import path from "path";
 import { pipeline } from "stream/promises";
 import ffmpeg from "fluent-ffmpeg";
 import os from "os";
+import { default as YTDlpWrap } from "yt-dlp-wrap";
 import {
   insertCollectionSchema,
   insertDownloadTaskSchema,
@@ -321,14 +322,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Return task immediately so client can track progress
         res.status(201).json(downloadTask);
 
-        // Start simulated download process asynchronously
+        // Start real download process using yt-dlp
         try {
-          simulateVideoDownload(downloadTask.id, downloadOptions.videoId);
+          // Use yt-dlp for downloading instead of simulation
+          console.log("Starting download with yt-dlp");
+          downloadWithYtDlp(downloadTask.id, downloadOptions.videoId, downloadOptions.quality);
         } catch (processingError) {
           console.error("Error in download processing:", processingError);
           await storage.updateDownloadTask(downloadTask.id, { 
             status: "failed", 
-            errorMessage: processingError.message || "Download processing failed", 
+            errorMessage: processingError instanceof Error ? processingError.message : "Download processing failed", 
             completedAt: new Date()
           });
           
@@ -337,8 +340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             taskId: downloadTask.id,
             videoId: downloadOptions.videoId,
             progress: 0,
-            status: "failed",
-            error: processingError.message || "Download processing failed"
+            status: "failed"
           });
         }
       } catch (ytdlError) {
@@ -644,6 +646,260 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to download videos using yt-dlp
+  async function downloadWithYtDlp(taskId: number, videoId: string, quality: string = "1080") {
+    console.log(`Starting yt-dlp download for task ${taskId}, video ID: ${videoId}, quality: ${quality}`);
+    
+    const task = await storage.getDownloadTask(taskId);
+    if (!task) {
+      console.error(`Task ${taskId} not found`);
+      return;
+    }
+    
+    // Save the collection ID from the task for later
+    const collectionId = task.collectionId;
+    console.log(`Collection ID for download task: ${collectionId || 'none'}`);
+    
+    // Update task to downloading status with initial progress
+    await storage.updateDownloadTask(taskId, { 
+      status: "downloading",
+      progress: 0,
+      errorMessage: null
+    });
+    
+    // Broadcast initial status
+    broadcastDownloadProgress({
+      taskId,
+      videoId,
+      progress: 0,
+      status: "downloading"
+    });
+    
+    try {
+      // Create download path
+      const fileName = `${videoId}-${randomUUID()}`;
+      const outputFilePath = path.join(DOWNLOADS_DIR, `${fileName}.mp4`);
+      
+      console.log(`Output file will be saved to: ${outputFilePath}`);
+      
+      // Set quality format based on selected option
+      let formatString = '';
+      if (quality === "1080") {
+        formatString = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]';
+      } else if (quality === "720") {
+        formatString = 'bestvideo[height<=720]+bestaudio/best[height<=720]';
+      } else {
+        formatString = 'best';
+      }
+      
+      // Set up yt-dlp download arguments
+      const downloadArgs = [
+        'https://www.youtube.com/watch?v=' + videoId,
+        '--format', formatString,
+        '--output', outputFilePath,
+        '--merge-output-format', 'mp4',
+        '--no-playlist',
+        '--progress',
+      ];
+      
+      let progress = 0;
+      let videoTitle = '';
+      
+      // Create a new instance of YTDlpWrap
+      const ytDlp = new YTDlpWrap();
+      
+      // Execute the download with progress tracking
+      try {
+        // Set up a 10% progress update interval
+        let lastReportedProgress = 0;
+        
+        // Execute the download with stdout hook for progress
+        const process = ytDlp.exec(downloadArgs);
+        
+        // Listen for stdout data to parse progress
+        process.stdout.on('data', (data) => {
+          const output = data.toString();
+          
+          // Try to extract download percentage
+          const progressMatch = output.match(/(\d+(\.\d+)?)%/);
+          if (progressMatch) {
+            progress = parseFloat(progressMatch[1]);
+            
+            // Only update if progress has changed significantly (at least 5%)
+            if (progress - lastReportedProgress >= 5 || progress === 100) {
+              lastReportedProgress = progress;
+              
+              // Extract other info if available
+              const speedMatch = output.match(/(\d+(\.\d+)?(K|M|G)iB\/s)/);
+              const etaMatch = output.match(/ETA\s+(\d+:\d+)/);
+              const speed = speedMatch ? speedMatch[1] : "calculating...";
+              const eta = etaMatch ? etaMatch[1] : "calculating...";
+              
+              console.log(`Download progress: ${progress.toFixed(1)}%, Speed: ${speed}, ETA: ${eta}`);
+              
+              // Update the database with progress
+              storage.updateDownloadProgress(taskId, {
+                taskId,
+                videoId,
+                progress,
+                status: "downloading",
+                speed,
+                eta,
+                size: {
+                  total: 0, // We don't have this info from output
+                  transferred: 0,
+                  totalMb: "unknown",
+                  transferredMb: "unknown"
+                }
+              }).catch(err => {
+                console.error("Error updating download progress:", err);
+              });
+              
+              // Broadcast progress update
+              broadcastDownloadProgress({
+                taskId,
+                videoId,
+                progress,
+                status: "downloading",
+                speed,
+                eta,
+                size: {
+                  total: 0,
+                  transferred: 0,
+                  totalMb: "unknown",
+                  transferredMb: "unknown"
+                }
+              });
+            }
+          }
+          
+          // Try to extract title if we don't have it yet
+          if (!videoTitle && output.includes('Destination:')) {
+            const titleMatch = output.match(/\[download\]\s+(.+?)\s+has/);
+            if (titleMatch) {
+              videoTitle = titleMatch[1];
+              console.log(`Detected video title: ${videoTitle}`);
+            }
+          }
+        });
+        
+        // Wait for the process to complete
+        await new Promise((resolve, reject) => {
+          process.on('close', (code) => {
+            if (code === 0) {
+              resolve(null);
+            } else {
+              reject(new Error(`yt-dlp exited with code ${code}`));
+            }
+          });
+          
+          process.on('error', (err) => {
+            reject(err);
+          });
+        });
+      } catch (execError) {
+        console.error('Error during yt-dlp execution:', execError);
+        throw execError;
+      }
+      
+      // Get file stats
+      const fileStats = fs.statSync(outputFilePath);
+      const fileSize = fileStats.size;
+      
+      // Update task as completed
+      await storage.updateDownloadTask(taskId, {
+        status: "completed",
+        progress: 100,
+        filePath: outputFilePath,
+        fileSize,
+        completedAt: new Date()
+      });
+      
+      // Find or create video entry
+      const video = await storage.getVideoByYouTubeId(videoId);
+      if (video) {
+        // Update existing video
+        await storage.updateVideo(video.id, {
+          isDownloaded: true,
+          filePath: outputFilePath,
+          fileSize
+        });
+        
+        // Add to collection if specified
+        if (collectionId) {
+          try {
+            await storage.addVideoToCollection(video.id, collectionId);
+            console.log(`Added existing video ${video.id} to collection ${collectionId}`);
+          } catch (collectionError) {
+            console.error("Error adding existing video to collection:", collectionError);
+          }
+        }
+      } else {
+        // Create new video entry
+        const newVideo = {
+          videoId,
+          title: videoTitle || `YouTube Video ${videoId}`,
+          thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+          channelTitle: "Downloaded Video",
+          description: "Downloaded with yt-dlp",
+          publishedAt: new Date().toISOString(),
+          duration: "00:00:00", // Unknown duration
+          viewCount: "0",
+          isDownloaded: true,
+          isWatched: false,
+          fileSize,
+          filePath: outputFilePath
+        };
+        
+        try {
+          // Create the video
+          const createdVideo = await storage.createVideo(newVideo as any);
+          console.log(`Created video with ID: ${createdVideo.id}`);
+          
+          // Add to collection if specified
+          if (collectionId) {
+            try {
+              await storage.addVideoToCollection(createdVideo.id, collectionId);
+              console.log(`Added new video ${createdVideo.id} to collection ${collectionId}`);
+            } catch (collectionError) {
+              console.error("Error adding to collection:", collectionError);
+            }
+          }
+        } catch (error) {
+          console.error("Error creating video entry:", error);
+        }
+      }
+      
+      // Final progress broadcast
+      broadcastDownloadProgress({
+        taskId,
+        videoId,
+        progress: 100,
+        status: "completed"
+      });
+      
+      console.log(`Download completed for task ${taskId}`);
+      
+    } catch (error) {
+      console.error(`Error downloading video ${videoId}:`, error);
+      
+      // Update task with error status
+      await storage.updateDownloadTask(taskId, {
+        status: "failed",
+        errorMessage: error instanceof Error ? error.message : "Download failed",
+        completedAt: new Date()
+      });
+      
+      // Broadcast error
+      broadcastDownloadProgress({
+        taskId,
+        videoId,
+        progress: 0,
+        status: "failed"
+      });
+    }
+  }
+  
   // Helper function to simulate video download (for demo purposes)
   async function simulateVideoDownload(taskId: number, videoId: string) {
     console.log(`Starting simulated download for task ${taskId}, video ID: ${videoId}`);
