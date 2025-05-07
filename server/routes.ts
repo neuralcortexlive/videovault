@@ -712,11 +712,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             console.log(`Download progress: ${progress.toFixed(1)}%, Speed: ${speed}, ETA: ${eta}`);
             
-            // Update database with progress
+            // Update database with progress (ensure progress is an integer)
             await storage.updateDownloadProgress(taskId, {
               taskId,
               videoId,
-              progress,
+              progress: Math.floor(progress), // Convert to integer to match database type
               status: "downloading",
               speed,
               eta,
@@ -728,11 +728,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             });
             
-            // Broadcast progress to all clients
+            // Broadcast progress to all clients (ensure consistency with database)
             broadcastDownloadProgress({
               taskId,
               videoId,
-              progress,
+              progress: Math.floor(progress), // Convert to integer for consistency
               status: "downloading",
               speed,
               eta,
