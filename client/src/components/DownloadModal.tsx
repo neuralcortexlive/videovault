@@ -135,8 +135,8 @@ export default function DownloadModal({
             {videoQualities.map(quality => (
               <Button
                 key={quality.itag}
-                variant={selectedQuality === quality.itag ? "outline" : "outline"}
-                className={selectedQuality === quality.itag ? "border-primary bg-primary bg-opacity-10 text-primary font-bold" : ""}
+                variant={selectedQuality === quality.itag ? "default" : "outline"}
+                className={selectedQuality === quality.itag ? "border-primary bg-primary text-white font-bold" : ""}
                 onClick={() => setSelectedQuality(quality.itag)}
               >
                 {quality.qualityLabel}
