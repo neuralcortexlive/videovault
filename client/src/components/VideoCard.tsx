@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import DownloadModal from "./DownloadModal";
 import CollectionModal from "./CollectionModal";
+import VideoPlayer from "./VideoPlayer";
 
 interface VideoCardProps {
   video: Video | YouTubeSearchResult;
@@ -25,6 +26,7 @@ export default function VideoCard({
   const { toast } = useToast();
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   
   const isYouTubeResult = 'snippet' in video;
   
@@ -102,8 +104,8 @@ export default function VideoCard({
               if (onPlay) {
                 onPlay();
               } else {
-                // If no onPlay prop, open YouTube video in a new tab
-                window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank');
+                // Show embedded video player
+                setShowVideoPlayer(true);
               }
             }}
           >
@@ -137,8 +139,8 @@ export default function VideoCard({
                     if (onPlay) {
                       onPlay();
                     } else {
-                      // If no onPlay prop, open YouTube video in a new tab
-                      window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank');
+                      // Show embedded video player
+                      setShowVideoPlayer(true);
                     }
                   }}
                 >
@@ -182,6 +184,13 @@ export default function VideoCard({
         onOpenChange={setShowCollectionModal}
         videoId={videoId}
       />
+
+      {showVideoPlayer && (
+        <VideoPlayer
+          videoId={videoId}
+          onClose={() => setShowVideoPlayer(false)}
+        />
+      )}
     </>
   );
 }

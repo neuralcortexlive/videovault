@@ -18,14 +18,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
     if (searchQuery.trim()) {
       console.log("Header search initiated for:", searchQuery);
       
-      // Navigate first to ensure search page component is mounted
-      navigate("/search");
+      // Add search query to URL as query parameter
+      const query = encodeURIComponent(searchQuery.trim());
       
-      // Add a slight delay to ensure components are ready
-      setTimeout(() => {
-        search(searchQuery);
-        console.log("Search function executed from header");
-      }, 100);
+      // Navigate directly to search page with query parameter
+      navigate(`/search?q=${query}`);
     }
   };
 
