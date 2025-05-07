@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
-import { Collection, DownloadFormat } from "@shared/schema";
+import { Collection } from "@shared/schema";
 
 interface DownloadModalProps {
   open: boolean;
@@ -34,7 +34,7 @@ export default function DownloadModal({
   channelTitle
 }: DownloadModalProps) {
   const { toast } = useToast();
-  const [selectedQuality, setSelectedQuality] = useState<string>("");
+  const [selectedQuality, setSelectedQuality] = useState<string>("1080"); // Default to 1080p
   const [selectedCollection, setSelectedCollection] = useState<string>("");
   const [autoMerge, setAutoMerge] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,40 +44,14 @@ export default function DownloadModal({
     enabled: open
   });
   
-  const { data: formatData, isLoading: isLoadingFormats } = useQuery<{ formats: DownloadFormat[] }>({
-    queryKey: [`/api/youtube/formats/${videoId}`],
-    enabled: open && !!videoId,
-  });
-  
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
-      setSelectedQuality("");
+      setSelectedQuality("1080"); // Always default to 1080p
       setSelectedCollection("");
       setAutoMerge(true);
     }
   }, [open]);
-  
-  // Set default quality when formats load
-  useEffect(() => {
-    if (formatData?.formats && formatData.formats.length > 0) {
-      // Find the highest quality format that has both video and audio
-      const highestQualityFormat = formatData.formats
-        .filter(format => format.hasVideo && format.qualityLabel)
-        .sort((a, b) => {
-          const getHeight = (label?: string) => {
-            if (!label) return 0;
-            const match = label.match(/(\d+)p/);
-            return match ? parseInt(match[1]) : 0;
-          };
-          return getHeight(b.qualityLabel) - getHeight(a.qualityLabel);
-        })[0];
-      
-      if (highestQualityFormat) {
-        setSelectedQuality(highestQualityFormat.itag.toString());
-      }
-    }
-  }, [formatData]);
   
   const handleDownload = async () => {
     if (!selectedQuality) {
@@ -128,17 +102,12 @@ export default function DownloadModal({
     }
   };
   
-  // Group video formats for display
-  const videoFormats = formatData?.formats
-    .filter(format => format.hasVideo && format.qualityLabel)
-    .sort((a, b) => {
-      const getHeight = (label?: string) => {
-        if (!label) return 0;
-        const match = label.match(/(\d+)p/);
-        return match ? parseInt(match[1]) : 0;
-      };
-      return getHeight(b.qualityLabel) - getHeight(a.qualityLabel);
-    }) || [];
+  // For simplicity, we'll offer only 1080p and 720p options
+  // These are predefined quality options rather than dynamic ones from the API
+  const videoQualities = [
+    { itag: "1080", qualityLabel: "1080p" },
+    { itag: "720", qualityLabel: "720p" }
+  ];
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -163,22 +132,16 @@ export default function DownloadModal({
         <div className="mb-4">
           <h4 className="text-sm font-medium mb-2">Select Quality:</h4>
           <div className="grid grid-cols-2 gap-2">
-            {isLoadingFormats ? (
-              <div className="col-span-2 text-center py-2">Loading formats...</div>
-            ) : videoFormats.length === 0 ? (
-              <div className="col-span-2 text-center py-2">No formats available</div>
-            ) : (
-              videoFormats.map(format => (
-                <Button
-                  key={format.itag}
-                  variant={selectedQuality === format.itag.toString() ? "default" : "outline"}
-                  className={selectedQuality === format.itag.toString() ? "border-primary bg-primary bg-opacity-10 text-primary" : ""}
-                  onClick={() => setSelectedQuality(format.itag.toString())}
-                >
-                  {format.qualityLabel}
-                </Button>
-              ))
-            )}
+            {videoQualities.map(quality => (
+              <Button
+                key={quality.itag}
+                variant={selectedQuality === quality.itag ? "default" : "outline"}
+                className={selectedQuality === quality.itag ? "border-primary bg-primary bg-opacity-10 text-primary" : ""}
+                onClick={() => setSelectedQuality(quality.itag)}
+              >
+                {quality.qualityLabel}
+              </Button>
+            ))}
           </div>
         </div>
         
