@@ -653,6 +653,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error(`Task ${taskId} not found`);
       return;
     }
+    
+    // Save the collection ID from the task for later
+    const collectionId = task.collectionId;
+    console.log(`Collection ID for download task: ${collectionId || 'none'}`);
+    
 
     // Simulate download progress
     let progress = 0;
@@ -710,6 +715,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               filePath: `/videos/${videoId}.mp4`,
               fileSize: 50 * 1024 * 1024
             });
+            
+            // Add to collection if specified
+            if (collectionId) {
+              try {
+                await storage.addVideoToCollection(video.id, collectionId);
+                console.log(`Added existing video ${video.id} to collection ${collectionId}`);
+              } catch (collectionError) {
+                console.error("Error adding existing video to collection:", collectionError);
+              }
+            }
           } else {
             // Create a placeholder video if it doesn't exist
             const videoTitle = `YouTube Video ${videoId}`;
@@ -729,7 +744,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             };
             
             try {
-              await storage.createVideo(newVideo as any);
+              // Create the video
+              const createdVideo = await storage.createVideo(newVideo as any);
+              console.log(`Created video with ID: ${createdVideo.id}`);
+              
+              // Add to collection if specified
+              if (collectionId) {
+                try {
+                  await storage.addVideoToCollection(createdVideo.id, collectionId);
+                  console.log(`Added video ${createdVideo.id} to collection ${collectionId}`);
+                } catch (collectionError) {
+                  console.error("Error adding to collection:", collectionError);
+                }
+              }
             } catch (error) {
               console.error("Error creating video entry:", error);
             }
