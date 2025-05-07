@@ -644,7 +644,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Helper function to process video download
+  // Helper function to simulate video download (for demo purposes)
+  async function simulateVideoDownload(taskId: number, videoId: string) {
+    console.log(`Starting simulated download for task ${taskId}, video ID: ${videoId}`);
+    
+    const task = await storage.getDownloadTask(taskId);
+    if (!task) {
+      console.error(`Task ${taskId} not found`);
+      return;
+    }
+
+    // Simulate download progress
+    let progress = 0;
+    const progressInterval = setInterval(async () => {
+      if (progress < 100) {
+        progress += 10;
+        
+        // Update download progress
+        await storage.updateDownloadProgress(taskId, {
+          progress,
+          status: progress < 100 ? "downloading" : "completed",
+          speed: "3.2 MB/s",
+          eta: progress < 100 ? "a few seconds" : "0s",
+          size: {
+            total: 50 * 1024 * 1024, // 50MB
+            transferred: Math.floor((50 * 1024 * 1024) * (progress / 100)),
+            totalMb: "50 MB",
+            transferredMb: `${Math.floor(50 * (progress / 100))} MB`
+          }
+        });
+        
+        // Broadcast progress
+        broadcastDownloadProgress({
+          taskId,
+          videoId,
+          progress,
+          status: progress < 100 ? "downloading" : "completed",
+          speed: "3.2 MB/s",
+          eta: progress < 100 ? "a few seconds" : "0s",
+          size: {
+            total: 50 * 1024 * 1024,
+            transferred: Math.floor((50 * 1024 * 1024) * (progress / 100)),
+            totalMb: "50 MB",
+            transferredMb: `${Math.floor(50 * (progress / 100))} MB`
+          }
+        });
+        
+        if (progress >= 100) {
+          clearInterval(progressInterval);
+          
+          // Mark as completed
+          await storage.updateDownloadTask(taskId, {
+            status: "completed",
+            progress: 100,
+            completedAt: new Date(),
+            fileSize: 50 * 1024 * 1024,
+            filePath: `/videos/${videoId}.mp4` // Simulated file path
+          });
+          
+          // Update video as downloaded
+          const video = await storage.getVideoByYouTubeId(videoId);
+          if (video) {
+            await storage.updateVideo(video.id, {
+              isDownloaded: true,
+              filePath: `/videos/${videoId}.mp4`,
+              fileSize: 50 * 1024 * 1024
+            });
+          } else {
+            // Create a placeholder video if it doesn't exist
+            const videoTitle = `YouTube Video ${videoId}`;
+            const newVideo = {
+              videoId,
+              title: videoTitle,
+              thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+              channelTitle: "Unknown Channel",
+              description: "Downloaded video",
+              publishedAt: new Date().toISOString(),
+              duration: "00:05:30",
+              viewCount: "0",
+              isDownloaded: true,
+              isWatched: false,
+              fileSize: 50 * 1024 * 1024,
+              filePath: `/videos/${videoId}.mp4`
+            };
+            
+            try {
+              await storage.createVideo(newVideo as any);
+            } catch (error) {
+              console.error("Error creating video entry:", error);
+            }
+          }
+          
+          console.log(`Simulated download completed for task ${taskId}`);
+        }
+      }
+    }, 1000); // Update every second
+  }
+
+  // Helper function to process video download (original implementation)
   async function processVideoDownload(taskId: number, videoInfo: ytdl.videoInfo) {
     try {
       console.log(`Starting download process for task ${taskId}, video: ${videoInfo.videoDetails.title}`);
