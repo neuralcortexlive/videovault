@@ -677,8 +677,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
     
     try {
-      // Create download path with unique ID to avoid conflicts
-      const fileName = `${videoId}-${randomUUID()}`;
+      // Use video title when fetching from YouTube API
+      let title = ""; 
+      
+      // Try to immediately get title if YouTube API key is available
+      try {
+        if (YOUTUBE_API_KEY) {
+          const videoDetails = await axios.get(
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
+          );
+          
+          if (videoDetails.data.items && videoDetails.data.items.length > 0) {
+            title = videoDetails.data.items[0].snippet.title;
+            console.log(`Retrieved video title: ${title}`);
+          }
+        }
+      } catch (err) {
+        console.error("Could not fetch video title:", err);
+      }
+      
+      // If title couldn't be fetched, use videoId instead
+      const safeTitle = title 
+        ? title.replace(/[^a-zA-Z0-9 \-_]/g, "") // Remove special characters
+        : videoId;
+        
+      // Create filename with format: "Video Title - UUID.mp4"
+      const uuid = randomUUID();
+      const fileName = `${safeTitle} - ${uuid}`;
       const outputFilePath = path.join(DOWNLOADS_DIR, `${fileName}.mp4`);
       
       console.log(`Output file will be saved to: ${outputFilePath}`);
@@ -890,6 +915,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const collectionId = task.collectionId;
     console.log(`Collection ID for download task: ${collectionId || 'none'}`);
     
+    // Use video title when fetching from YouTube API
+    let title = ""; 
+    
+    // Try to immediately get title if YouTube API key is available
+    try {
+      if (YOUTUBE_API_KEY) {
+        const videoDetails = await axios.get(
+          `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
+        );
+        
+        if (videoDetails.data.items && videoDetails.data.items.length > 0) {
+          title = videoDetails.data.items[0].snippet.title;
+          console.log(`Retrieved video title: ${title}`);
+        }
+      }
+    } catch (err) {
+      console.error("Could not fetch video title:", err);
+    }
+    
+    // If title couldn't be fetched, use videoId instead
+    const safeTitle = title 
+      ? title.replace(/[^a-zA-Z0-9 \-_]/g, "") // Remove special characters
+      : videoId;
+      
+    // Create filename with format: "Video Title - UUID.mp4"
+    const uuid = randomUUID();
+    const fileName = `${safeTitle} - ${uuid}`;
+    const filePath = `/videos/${fileName}.mp4`;
 
     // Simulate download progress
     let progress = 0;
@@ -936,7 +989,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             progress: 100,
             completedAt: new Date(),
             fileSize: 50 * 1024 * 1024,
-            filePath: `/videos/${videoId}.mp4` // Simulated file path
+            filePath: filePath // Use the properly formatted file path
           });
           
           // Update video as downloaded
@@ -944,7 +997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (video) {
             await storage.updateVideo(video.id, {
               isDownloaded: true,
-              filePath: `/videos/${videoId}.mp4`,
+              filePath: filePath,
               fileSize: 50 * 1024 * 1024
             });
             
@@ -972,7 +1025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               isDownloaded: true,
               isWatched: false,
               fileSize: 50 * 1024 * 1024,
-              filePath: `/videos/${videoId}.mp4`
+              filePath: filePath
             };
             
             try {
@@ -1027,7 +1080,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const videoId = task.videoId;
-      const fileName = `${videoId}-${randomUUID()}`;
+      
+      // Try to get video title from YouTube API or video info
+      let title = videoInfo?.videoDetails?.title || "";
+      
+      // Create safe file name from title
+      const safeTitle = title 
+        ? title.replace(/[^a-zA-Z0-9 \-_]/g, "") // Remove special characters
+        : videoId;
+        
+      // Create filename with format: "Video Title - UUID.mp4"
+      const uuid = randomUUID();
+      const fileName = `${safeTitle} - ${uuid}`;
       const outputFilePath = path.join(DOWNLOADS_DIR, `${fileName}.mp4`);
       
       console.log(`Output file: ${outputFilePath}`);
