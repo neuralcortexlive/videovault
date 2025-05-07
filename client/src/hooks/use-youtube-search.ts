@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { YouTubeSearchResult } from "@shared/schema";
@@ -50,12 +50,59 @@ export default function useYouTubeSearch() {
         console.log(`API response status: ${response.status}`);
         console.log("Response length:", responseText.length);
         
+        if (!response.ok) {
+          let errorMessage = `API error: ${response.status} ${response.statusText}`;
+          
+          try {
+            const errorData = JSON.parse(responseText);
+            if (errorData.message) {
+              errorMessage = errorData.message;
+            }
+            
+            // Check for specific error types
+            if (errorMessage.includes('API key')) {
+              toast({
+                title: "YouTube API Key Error",
+                description: "The YouTube API key has expired or is invalid. Please contact the administrator.",
+                variant: "destructive"
+              });
+              throw new Error("YouTube API key error: " + errorMessage);
+            }
+            
+            if (errorMessage.includes('quota')) {
+              toast({
+                title: "API Quota Exceeded",
+                description: "The YouTube API quota has been exceeded. Please try again tomorrow.",
+                variant: "destructive"
+              });
+              throw new Error("YouTube API quota exceeded: " + errorMessage);
+            }
+          } catch (parseError) {
+            // If we can't parse the error, use the default message
+            console.error("Failed to parse API error response:", parseError);
+          }
+          
+          // Show a toast and throw the error
+          toast({
+            title: "Search Error",
+            description: errorMessage,
+            variant: "destructive"
+          });
+          
+          throw new Error(errorMessage);
+        }
+        
         let data;
         try {
           data = JSON.parse(responseText);
         } catch (err) {
           console.error("Failed to parse response as JSON:", err);
           console.log("Response body:", responseText.substring(0, 500));
+          toast({
+            title: "Search Error",
+            description: "Invalid response from search API",
+            variant: "destructive"
+          });
           throw new Error("Invalid JSON response from search API");
         }
         
@@ -64,45 +111,14 @@ export default function useYouTubeSearch() {
       } catch (error) {
         console.error("Search query error:", error);
         
-        let errorTitle = "Search Error";
-        let errorMessage = "Failed to search videos. Please try again.";
-        
-        if (error instanceof Error) {
-          // Check if this is an API error response from our server
-          if (responseText) {
-            try {
-              const errorData = JSON.parse(responseText);
-              
-              // Check for specific error types
-              if (errorData.type === 'api_key_error' || responseText.includes('API key')) {
-                errorTitle = "YouTube API Key Error";
-                errorMessage = "The YouTube API key has expired or is invalid. Please contact the administrator.";
-              }
-              // Check for quota errors
-              else if (errorData.type === 'quota_error' || responseText.includes('quota')) {
-                errorTitle = "API Quota Exceeded";
-                errorMessage = "The YouTube API quota has been exceeded. Please try again tomorrow.";
-              }
-              // Use the error message from the API if available
-              else if (errorData.message) {
-                errorMessage = errorData.message;
-              }
-            } catch (parseErr) {
-              // If we can't parse the response, use the error message
-              errorMessage = error.message || "Unknown search error";
-            }
-          } else {
-            // Use the error message directly
-            errorMessage = error.message || "Failed to search videos";
-          }
+        // If the error wasn't already handled with a toast above
+        if (error instanceof Error && !error.message.includes('API key') && !error.message.includes('quota')) {
+          toast({
+            title: "Search Error",
+            description: error.message || "Failed to search videos",
+            variant: "destructive"
+          });
         }
-        
-        // Show toast notification
-        toast({
-          title: errorTitle,
-          description: errorMessage,
-          variant: "destructive"
-        });
         
         throw error;
       }
@@ -112,7 +128,7 @@ export default function useYouTubeSearch() {
     retry: 2, // Retry failed requests twice
   });
   
-  // Search function - optimized
+  // Search function - improved with synchronous state update
   const search = useCallback((searchQuery: string, orderBy: string = "date") => {
     console.log(`Search function called with query="${searchQuery}" and order="${orderBy}"`);
     
@@ -121,21 +137,70 @@ export default function useYouTubeSearch() {
       return;
     }
     
-    setQuery(searchQuery.trim());
+    // Update state immediately
+    const trimmedQuery = searchQuery.trim();
+    setQuery(trimmedQuery);
     setOrder(orderBy);
     
-    console.log("Invalidating previous search results...");
-    // Invalidate previous search results
-    queryClient.invalidateQueries({ 
-      queryKey: [`/api/youtube/search`] 
-    });
-    
-    console.log("Triggering new search...");
-    // Explicitly refetch with the new query
-    refetch().catch(err => {
-      console.error("Refetch error:", err);
-    });
-  }, [refetch, toast]);
+    // Use a direct fetch instead of refetch to ensure we're using the latest values
+    (async () => {
+      try {
+        console.log(`Directly fetching search results for "${trimmedQuery}"`);
+        
+        const searchUrl = `/api/youtube/search?query=${encodeURIComponent(trimmedQuery)}&order=${orderBy}`;
+        console.log("Direct fetch URL:", searchUrl);
+        
+        const response = await fetch(searchUrl);
+        const responseText = await response.text();
+        
+        console.log(`Direct fetch response status: ${response.status}`);
+        
+        if (response.ok) {
+          try {
+            const data = JSON.parse(responseText);
+            console.log(`Direct fetch returned ${data.items?.length || 0} results`);
+            
+            // Update query cache directly
+            queryClient.setQueryData([`/api/youtube/search`, trimmedQuery, orderBy], data);
+          } catch (parseErr) {
+            console.error("Failed to parse direct fetch response:", parseErr);
+            toast({
+              title: "Search Error",
+              description: "Failed to parse search results",
+              variant: "destructive"
+            });
+          }
+        } else {
+          console.error(`Direct fetch error: ${response.status} ${response.statusText}`);
+          
+          // Try to parse the error response
+          try {
+            const errorData = JSON.parse(responseText);
+            const errorMessage = errorData.message || `Failed to search: ${response.statusText}`;
+            
+            toast({
+              title: "Search Error",
+              description: errorMessage,
+              variant: "destructive"
+            });
+          } catch (parseError) {
+            toast({
+              title: "Search Error",
+              description: `Failed to search: ${response.statusText}`,
+              variant: "destructive"
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Direct fetch error:", err);
+        toast({
+          title: "Search Error",
+          description: err instanceof Error ? err.message : "Failed to search videos",
+          variant: "destructive"
+        });
+      }
+    })();
+  }, [toast]);
   
   // Load more results with enhanced error handling
   const loadMore = useCallback(async (nextPageToken: string) => {
