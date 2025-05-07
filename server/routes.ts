@@ -8,7 +8,8 @@ import path from "path";
 import { pipeline } from "stream/promises";
 import ffmpeg from "fluent-ffmpeg";
 import os from "os";
-import { default as YTDlpWrap } from "yt-dlp-wrap";
+// Import ytdlp directly without using 'default as'
+import ytdlp from "yt-dlp-wrap";
 import {
   insertCollectionSchema,
   insertDownloadTaskSchema,
@@ -706,18 +707,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let videoTitle = '';
       
       // Create a new instance of YTDlpWrap
-      const ytDlp = new YTDlpWrap();
+      const ytDlpInstance = new ytdlp.default();
       
       // Execute the download with progress tracking
       try {
         // Set up a 10% progress update interval
         let lastReportedProgress = 0;
         
-        // Execute the download with stdout hook for progress
-        const process = ytDlp.exec(downloadArgs);
+        // Execute the download with progress hook
+        const process = ytDlpInstance.exec(downloadArgs);
         
-        // Listen for stdout data to parse progress
-        process.stdout.on('data', (data) => {
+        // Listen for stdout/stderr data to parse progress
+        process.on('stdout', (data) => {
           const output = data.toString();
           
           // Try to extract download percentage
