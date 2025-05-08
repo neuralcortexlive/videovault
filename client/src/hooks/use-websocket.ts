@@ -4,9 +4,8 @@ export default function useWebSocket() {
   const [socket, setSocket] = useState<WebSocket | null>(null);
 
   useEffect(() => {
-    // Connect to WebSocket server
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    // Connect to WebSocket server using wss protocol
+    const wsUrl = `wss://${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}/ws`;
     const ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {

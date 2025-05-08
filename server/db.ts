@@ -17,7 +17,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Initialize admin client with service role key for server-side operations
-export const supabaseAdmin = createClient<Database>(supabaseUrl, supabaseServiceKey || '');
+export const supabaseAdmin = supabaseServiceKey 
+  ? createClient<Database>(supabaseUrl, supabaseServiceKey)
+  : supabase;
 
 // Export a function to test the connection
 export async function testSupabaseConnection() {
