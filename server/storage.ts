@@ -1,4 +1,4 @@
-import { prisma } from './db';
+import { supabase } from './db';
 import type { Video, Collection, VideoCollection, DownloadTask, DownloadProgress } from '@shared/schema';
 
 export interface IStorage {
@@ -35,41 +35,39 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // Videos
   async getVideo(id: number): Promise<Video | undefined> {
-    return await prisma.video.findUnique({ where: { id } });
+    const { data } = await supabase.from('videos').select('*').eq('id', id).single();
+    return data || undefined;
   }
 
   async getVideoByYouTubeId(videoId: string): Promise<Video | undefined> {
-    return await prisma.video.findUnique({ where: { videoId } });
+    const { data } = await supabase.from('videos').select('*').eq('video_id', videoId).single();
+    return data || undefined;
   }
 
   async getAllVideos(): Promise<Video[]> {
-    return await prisma.video.findMany();
+    const { data } = await supabase.from('videos').select('*');
+    return data || [];
   }
 
   async createVideo(video: Omit<Video, 'id'>): Promise<Video> {
-    return await prisma.video.create({ data: video });
+    const { data, error } = await supabase.from('videos').insert([video]).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async updateVideo(id: number, video: Partial<Video>): Promise<Video | undefined> {
-    return await prisma.video.update({
-      where: { id },
-      data: video
-    });
+    const { data } = await supabase.from('videos').update(video).eq('id', id).select().single();
+    return data || undefined;
   }
 
   async deleteVideo(id: number): Promise<boolean> {
     try {
       // Delete video collections first
-      await prisma.videoCollection.deleteMany({
-        where: { videoId: id }
-      });
+      await supabase.from('video_collections').delete().eq('video_id', id);
       
       // Then delete the video
-      await prisma.video.delete({
-        where: { id }
-      });
-      
-      return true;
+      const { error } = await supabase.from('videos').delete().eq('id', id);
+      return !error;
     } catch (error) {
       return false;
     }
@@ -77,42 +75,39 @@ export class DatabaseStorage implements IStorage {
 
   // Collections
   async getCollection(id: number): Promise<Collection | undefined> {
-    return await prisma.collection.findUnique({ where: { id } });
+    const { data } = await supabase.from('collections').select('*').eq('id', id).single();
+    return data || undefined;
   }
 
   async getAllCollections(): Promise<Collection[]> {
-    return await prisma.collection.findMany();
+    const { data } = await supabase.from('collections').select('*');
+    return data || [];
   }
 
   async createCollection(collection: Omit<Collection, 'id' | 'createdAt' | 'updatedAt'>): Promise<Collection> {
-    return await prisma.collection.create({
-      data: collection
-    });
+    const { data, error } = await supabase.from('collections').insert([collection]).select().single();
+    if (error) throw error;
+    return data;
   }
 
   async updateCollection(id: number, collection: Partial<Collection>): Promise<Collection | undefined> {
-    return await prisma.collection.update({
-      where: { id },
-      data: {
-        ...collection,
-        updatedAt: new Date()
-      }
-    });
+    const { data } = await supabase
+      .from('collections')
+      .update({ ...collection, updated_at: new Date() })
+      .eq('id', id)
+      .select()
+      .single();
+    return data || undefined;
   }
 
   async deleteCollection(id: number): Promise<boolean> {
     try {
       // Delete video collections first
-      await prisma.videoCollection.deleteMany({
-        where: { collectionId: id }
-      });
+      await supabase.from('video_collections').delete().eq('collection_id', id);
       
       // Then delete the collection
-      await prisma.collection.delete({
-        where: { id }
-      });
-      
-      return true;
+      const { error } = await supabase.from('collections').delete().eq('id', id);
+      return !error;
     } catch (error) {
       return false;
     }
@@ -120,44 +115,44 @@ export class DatabaseStorage implements IStorage {
 
   // Video Collections
   async getVideoCollections(collectionId: number): Promise<Video[]> {
-    const videoCollections = await prisma.videoCollection.findMany({
-      where: { collectionId },
-      include: { video: true }
-    });
+    const { data } = await supabase
+      .from('video_collections')
+      .select('videos(*)')
+      .eq('collection_id', collectionId);
     
-    return videoCollections.map(vc => vc.video);
+    return (data || []).map(vc => vc.videos);
   }
 
   async addVideoToCollection(videoId: number, collectionId: number): Promise<VideoCollection> {
     // Check if it already exists
-    const existing = await prisma.videoCollection.findFirst({
-      where: {
-        videoId,
-        collectionId
-      }
-    });
+    const { data: existing } = await supabase
+      .from('video_collections')
+      .select('*')
+      .eq('video_id', videoId)
+      .eq('collection_id', collectionId)
+      .single();
     
-    if (existing) {
-      return existing;
-    }
+    if (existing) return existing;
     
-    return await prisma.videoCollection.create({
-      data: {
-        videoId,
-        collectionId
-      }
-    });
+    const { data, error } = await supabase
+      .from('video_collections')
+      .insert([{ video_id: videoId, collection_id: collectionId }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 
   async removeVideoFromCollection(videoId: number, collectionId: number): Promise<boolean> {
     try {
-      await prisma.videoCollection.deleteMany({
-        where: {
-          videoId,
-          collectionId
-        }
-      });
-      return true;
+      const { error } = await supabase
+        .from('video_collections')
+        .delete()
+        .eq('video_id', videoId)
+        .eq('collection_id', collectionId);
+      
+      return !error;
     } catch (error) {
       return false;
     }
@@ -165,44 +160,40 @@ export class DatabaseStorage implements IStorage {
 
   // Download Tasks
   async getDownloadTask(id: number): Promise<DownloadTask | undefined> {
-    return await prisma.downloadTask.findUnique({ where: { id } });
+    const { data } = await supabase.from('download_tasks').select('*').eq('id', id).single();
+    return data || undefined;
   }
 
   async getActiveDownloadTasks(): Promise<DownloadTask[]> {
-    return await prisma.downloadTask.findMany({
-      where: {
-        status: {
-          in: ['pending', 'downloading']
-        }
-      },
-      orderBy: [
-        { progress: 'desc' },
-        { createdAt: 'desc' }
-      ]
-    });
+    const { data } = await supabase
+      .from('download_tasks')
+      .select('*')
+      .in('status', ['pending', 'downloading'])
+      .order('progress', { ascending: false })
+      .order('created_at', { ascending: false });
+    
+    return data || [];
   }
 
   async getCompletedDownloadTasks(): Promise<DownloadTask[]> {
-    return await prisma.downloadTask.findMany({
-      where: {
-        status: {
-          in: ['completed', 'failed']
-        }
-      },
-      orderBy: [
-        { completedAt: 'desc' }
-      ]
-    });
+    const { data } = await supabase
+      .from('download_tasks')
+      .select('*')
+      .in('status', ['completed', 'failed'])
+      .order('completed_at', { ascending: false });
+    
+    return data || [];
   }
 
   async createDownloadTask(task: Omit<DownloadTask, 'id' | 'status' | 'progress' | 'createdAt' | 'completedAt'>): Promise<DownloadTask> {
-    return await prisma.downloadTask.create({
-      data: {
-        ...task,
-        status: 'pending',
-        progress: 0
-      }
-    });
+    const { data, error } = await supabase
+      .from('download_tasks')
+      .insert([{ ...task, status: 'pending', progress: 0 }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 
   async updateDownloadTask(id: number, task: Partial<DownloadTask>): Promise<DownloadTask | undefined> {
@@ -211,10 +202,14 @@ export class DatabaseStorage implements IStorage {
       task.completedAt = new Date();
     }
     
-    return await prisma.downloadTask.update({
-      where: { id },
-      data: task
-    });
+    const { data } = await supabase
+      .from('download_tasks')
+      .update(task)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    return data || undefined;
   }
 
   async updateDownloadProgress(id: number, progress: Partial<DownloadProgress>): Promise<DownloadTask | undefined> {
@@ -228,22 +223,24 @@ export class DatabaseStorage implements IStorage {
       updateData.status = progress.status;
       
       if (progress.status === 'completed' || progress.status === 'failed') {
-        updateData.completedAt = new Date();
+        updateData.completed_at = new Date();
       }
     }
     
-    return await prisma.downloadTask.update({
-      where: { id },
-      data: updateData
-    });
+    const { data } = await supabase
+      .from('download_tasks')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    return data || undefined;
   }
 
   async deleteDownloadTask(id: number): Promise<boolean> {
     try {
-      await prisma.downloadTask.delete({
-        where: { id }
-      });
-      return true;
+      const { error } = await supabase.from('download_tasks').delete().eq('id', id);
+      return !error;
     } catch (error) {
       return false;
     }
@@ -252,18 +249,16 @@ export class DatabaseStorage implements IStorage {
 
 // Initialize database with sample collections
 export async function initializeDatabase() {
-  const existingCollections = await prisma.collection.findMany();
+  const { data: existingCollections } = await supabase.from('collections').select('*');
   
-  if (existingCollections.length === 0) {
+  if (!existingCollections?.length) {
     // Add default collections
-    await prisma.collection.createMany({
-      data: [
-        { name: "Educational", description: "Educational videos" },
-        { name: "Music Videos", description: "Music videos collection" },
-        { name: "Tutorials", description: "Tutorial videos" },
-        { name: "Documentaries", description: "Documentary videos" }
-      ]
-    });
+    await supabase.from('collections').insert([
+      { name: "Educational", description: "Educational videos" },
+      { name: "Music Videos", description: "Music videos collection" },
+      { name: "Tutorials", description: "Tutorial videos" },
+      { name: "Documentaries", description: "Documentary videos" }
+    ]);
   }
 }
 
