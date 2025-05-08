@@ -1,98 +1,92 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Video schema
-export const videos = pgTable("videos", {
-  id: serial("id").primaryKey(),
-  videoId: text("video_id").notNull().unique(), // YouTube video ID
-  title: text("title").notNull(),
-  description: text("description"),
-  channelTitle: text("channel_title"),
-  thumbnailUrl: text("thumbnail_url"),
-  publishedAt: text("published_at"),
-  duration: text("duration"),
-  viewCount: text("view_count"),
-  downloadPath: text("download_path"),
-  format: text("format").default("mp4"),
-  quality: text("quality"),
-  fileSize: integer("file_size"),
-  isDownloaded: boolean("is_downloaded").default(false),
-  isWatched: boolean("is_watched").default(false),
-  downloadedAt: timestamp("downloaded_at"),
-  metadata: jsonb("metadata"),
+export const insertVideoSchema = z.object({
+  videoId: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  channelTitle: z.string().optional(),
+  thumbnailUrl: z.string().optional(),
+  publishedAt: z.string().optional(),
+  duration: z.string().optional(),
+  viewCount: z.string().optional(),
+  downloadPath: z.string().optional(),
+  format: z.string().optional().default("mp4"),
+  quality: z.string().optional(),
+  fileSize: z.number().optional(),
+  isDownloaded: z.boolean().optional().default(false),
+  isWatched: z.boolean().optional().default(false),
+  downloadedAt: z.date().optional(),
+  metadata: z.any().optional()
 });
 
 // Collection schema
-export const collections = pgTable("collections", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  thumbnailUrl: text("thumbnail_url"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Video to collection mapping (many-to-many)
-export const videoCollections = pgTable("video_collections", {
-  id: serial("id").primaryKey(),
-  videoId: integer("video_id").notNull().references(() => videos.id),
-  collectionId: integer("collection_id").notNull().references(() => collections.id),
+export const insertCollectionSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  thumbnailUrl: z.string().optional()
 });
 
 // Download task schema
-export const downloadTasks = pgTable("download_tasks", {
-  id: serial("id").primaryKey(),
-  videoId: text("video_id").notNull(), // YouTube video ID
-  title: text("title").notNull(),
-  status: text("status").default("pending"), // pending, downloading, completed, failed
-  progress: integer("progress").default(0),
-  format: text("format").default("mp4"),
-  quality: text("quality"),
-  errorMessage: text("error_message"),
-  createdAt: timestamp("created_at").defaultNow(),
-  completedAt: timestamp("completed_at"),
-  fileSize: integer("file_size"),
-  filePath: text("file_path"),
-  collectionId: integer("collection_id").references(() => collections.id),
+export const insertDownloadTaskSchema = z.object({
+  videoId: z.string(),
+  title: z.string(),
+  format: z.string().optional().default("mp4"),
+  quality: z.string().optional(),
+  collectionId: z.number().optional()
 });
 
-// Insert schemas
-export const insertVideoSchema = createInsertSchema(videos).omit({ 
-  id: true 
-});
+// Types from Prisma schema
+export type Video = {
+  id: number;
+  videoId: string;
+  title: string;
+  description?: string | null;
+  channelTitle?: string | null;
+  thumbnailUrl?: string | null;
+  publishedAt?: string | null;
+  duration?: string | null;
+  viewCount?: string | null;
+  downloadPath?: string | null;
+  format?: string | null;
+  quality?: string | null;
+  fileSize?: number | null;
+  isDownloaded: boolean;
+  isWatched: boolean;
+  downloadedAt?: Date | null;
+  metadata?: any | null;
+};
 
-export const insertCollectionSchema = createInsertSchema(collections).omit({ 
-  id: true, 
-  createdAt: true, 
-  updatedAt: true 
-});
+export type Collection = {
+  id: number;
+  name: string;
+  description?: string | null;
+  thumbnailUrl?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
-export const insertVideoCollectionSchema = createInsertSchema(videoCollections).omit({ 
-  id: true 
-});
+export type VideoCollection = {
+  id: number;
+  videoId: number;
+  collectionId: number;
+};
 
-export const insertDownloadTaskSchema = createInsertSchema(downloadTasks).omit({ 
-  id: true, 
-  progress: true, 
-  status: true, 
-  createdAt: true, 
-  completedAt: true, 
-  errorMessage: true 
-});
-
-// Types
-export type Video = typeof videos.$inferSelect;
-export type InsertVideo = z.infer<typeof insertVideoSchema>;
-
-export type Collection = typeof collections.$inferSelect;
-export type InsertCollection = z.infer<typeof insertCollectionSchema>;
-
-export type VideoCollection = typeof videoCollections.$inferSelect;
-export type InsertVideoCollection = z.infer<typeof insertVideoCollectionSchema>;
-
-export type DownloadTask = typeof downloadTasks.$inferSelect;
-export type InsertDownloadTask = z.infer<typeof insertDownloadTaskSchema>;
+export type DownloadTask = {
+  id: number;
+  videoId: string;
+  title: string;
+  status: string;
+  progress: number;
+  format?: string | null;
+  quality?: string | null;
+  errorMessage?: string | null;
+  createdAt: Date;
+  completedAt?: Date | null;
+  fileSize?: number | null;
+  filePath?: string | null;
+  collectionId?: number | null;
+};
 
 // YouTube API response types
 export type YouTubeSearchResult = {
