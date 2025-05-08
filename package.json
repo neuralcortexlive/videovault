@@ -10,7 +10,8 @@
     "check": "tsc",
     "db:push": "supabase db push",
     "db:studio": "supabase db studio",
-    "db:migrate": "supabase db migrate"
+    "db:migrate": "supabase db migrate",
+    "setup": "node setup-env.js && npm run db:push"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
