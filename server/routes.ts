@@ -8,7 +8,6 @@ import path from "path";
 import { pipeline } from "stream/promises";
 import ffmpeg from "fluent-ffmpeg";
 import os from "os";
-// Import ytdlp directly without using 'default as'
 import ytdlp from "yt-dlp-wrap";
 import {
   insertCollectionSchema,
@@ -21,8 +20,8 @@ import {
 import axios from "axios";
 import { randomUUID } from "crypto";
 
-// YouTube API key - use environment variable only
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+// Hardcoded YouTube API key
+const YOUTUBE_API_KEY = 'AIzaSyDmhH5AZ52qIIIKN-l2r1LXK40Qi5JW7Q8';
 const DOWNLOADS_DIR = path.join(os.tmpdir(), "ytmanager-downloads");
 
 // Ensure downloads directory exists
@@ -84,11 +83,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!query) {
         console.log("Search rejected: No query parameter");
         return res.status(400).json({ message: "Query parameter is required" });
-      }
-
-      if (!YOUTUBE_API_KEY) {
-        console.log("Search rejected: No YouTube API key");
-        return res.status(500).json({ message: "YouTube API key not configured" });
       }
 
       console.log(`Making YouTube API request for query: "${query}", order: ${order}`);
@@ -158,10 +152,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/youtube/videos/:videoId", async (req, res) => {
     try {
       const { videoId } = req.params;
-      
-      if (!YOUTUBE_API_KEY) {
-        return res.status(500).json({ message: "YouTube API key not configured" });
-      }
 
       const response = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
         params: {
@@ -509,10 +499,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!video) {
         // Get video details from YouTube
-        if (!YOUTUBE_API_KEY) {
-          return res.status(500).json({ message: "YouTube API key not configured" });
-        }
-
         const response = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
           params: {
             part: "snippet,contentDetails,statistics",
@@ -682,15 +668,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Try to immediately get title if YouTube API key is available
       try {
-        if (YOUTUBE_API_KEY) {
-          const videoDetails = await axios.get(
-            `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
-          );
-          
-          if (videoDetails.data.items && videoDetails.data.items.length > 0) {
-            title = videoDetails.data.items[0].snippet.title;
-            console.log(`Retrieved video title: ${title}`);
-          }
+        const videoDetails = await axios.get(
+          `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
+        );
+        
+        if (videoDetails.data.items && videoDetails.data.items.length > 0) {
+          title = videoDetails.data.items[0].snippet.title;
+          console.log(`Retrieved video title: ${title}`);
         }
       } catch (err) {
         console.error("Could not fetch video title:", err);
@@ -819,17 +803,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   let description = "Downloaded video";
                   
                   try {
-                    if (YOUTUBE_API_KEY) {
-                      const videoDetails = await axios.get(
-                        `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
-                      );
-                      
-                      if (videoDetails.data.items && videoDetails.data.items.length > 0) {
-                        const snippet = videoDetails.data.items[0].snippet;
-                        title = snippet.title;
-                        channelTitle = snippet.channelTitle;
-                        description = snippet.description;
-                      }
+                    const videoDetails = await axios.get(
+                      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
+                    );
+                    
+                    if (videoDetails.data.items && videoDetails.data.items.length > 0) {
+                      const snippet = videoDetails.data.items[0].snippet;
+                      title = snippet.title;
+                      channelTitle = snippet.channelTitle;
+                      description = snippet.description;
                     }
                   } catch (apiError) {
                     console.error("Could not fetch video details from YouTube API:", apiError);
@@ -920,15 +902,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // Try to immediately get title if YouTube API key is available
     try {
-      if (YOUTUBE_API_KEY) {
-        const videoDetails = await axios.get(
-          `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
-        );
-        
-        if (videoDetails.data.items && videoDetails.data.items.length > 0) {
-          title = videoDetails.data.items[0].snippet.title;
-          console.log(`Retrieved video title: ${title}`);
-        }
+      const videoDetails = await axios.get(
+        `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
+      );
+      
+      if (videoDetails.data.items && videoDetails.data.items.length > 0) {
+        title = videoDetails.data.items[0].snippet.title;
+        console.log(`Retrieved video title: ${title}`);
       }
     } catch (err) {
       console.error("Could not fetch video title:", err);
