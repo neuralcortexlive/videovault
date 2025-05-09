@@ -23,15 +23,15 @@ export default function Home() {
   const { activeDownloads, cancelDownload } = useDownloads();
   const { collections } = useCollections();
   
-  // Get downloaded videos
+  // Buscar vídeos baixados
   const { data: downloadedVideos = [] } = useQuery<Video[]>({
     queryKey: ['/api/videos/downloaded'],
   });
   
-  // Initialize collection stats
+  // Inicializar estatísticas das coleções
   const [collectionStats, setCollectionStats] = useState<CollectionStat[]>([]);
   
-  // Update collection stats when collections change
+  // Atualizar estatísticas quando as coleções mudarem
   useEffect(() => {
     const stats = collections.map(collection => {
       return {
@@ -51,36 +51,36 @@ export default function Home() {
             value="dashboard" 
             className="border-primary text-primary data-[state=active]:border-b-2 border-0 rounded-none data-[state=active]:shadow-none py-2 px-1 data-[state=active]:bg-transparent"
           >
-            Dashboard
+            Painel
           </TabsTrigger>
           <TabsTrigger 
             value="recentDownloads" 
             className="border-transparent text-gray-500 hover:text-gray-700 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary border-0 rounded-none data-[state=active]:shadow-none py-2 px-1 data-[state=active]:bg-transparent"
           >
-            Recent Downloads
+            Downloads Recentes
           </TabsTrigger>
           <TabsTrigger 
             value="collections" 
             className="border-transparent text-gray-500 hover:text-gray-700 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary border-0 rounded-none data-[state=active]:shadow-none py-2 px-1 data-[state=active]:bg-transparent"
           >
-            Collections
+            Coleções
           </TabsTrigger>
           <TabsTrigger 
             value="history" 
             className="border-transparent text-gray-500 hover:text-gray-700 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary border-0 rounded-none data-[state=active]:shadow-none py-2 px-1 data-[state=active]:bg-transparent"
           >
-            History
+            Histórico
           </TabsTrigger>
         </TabsList>
         
         <TabsContent value="dashboard" className="space-y-8">
-          {/* Active Downloads */}
+          {/* Downloads Ativos */}
           <section className="mb-8">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold">Active Downloads</h2>
+              <h2 className="text-lg font-bold">Downloads Ativos</h2>
               <Link href="/downloads">
                 <Button variant="ghost" className="text-accent hover:text-blue-700 text-sm font-medium">
-                  View all
+                  Ver todos
                 </Button>
               </Link>
             </div>
@@ -88,7 +88,7 @@ export default function Home() {
             <div className="bg-white rounded-lg shadow overflow-hidden">
               {activeDownloads.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
-                  <p>No active downloads. Search for videos to download.</p>
+                  <p>Nenhum download ativo. Busque vídeos para baixar.</p>
                 </div>
               ) : (
                 activeDownloads.slice(0, 2).map(download => (
@@ -102,31 +102,31 @@ export default function Home() {
             </div>
           </section>
           
-          {/* Collections */}
+          {/* Coleções */}
           <section className="mb-8">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold">Your Collections</h2>
+              <h2 className="text-lg font-bold">Suas Coleções</h2>
               <Button 
                 variant="ghost" 
                 className="text-accent hover:text-blue-700 text-sm font-medium"
                 onClick={() => setShowCollectionModal(true)}
               >
                 <Plus className="h-4 w-4 mr-1" />
-                <span>New Collection</span>
+                <span>Nova Coleção</span>
               </Button>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {collectionStats.length === 0 ? (
                 <div className="col-span-full p-8 text-center text-gray-500 bg-white rounded-lg shadow">
-                  <p>No collections yet. Create your first collection to organize your videos.</p>
+                  <p>Nenhuma coleção ainda. Crie sua primeira coleção para organizar seus vídeos.</p>
                   <Button 
                     variant="default" 
                     className="mt-4"
                     onClick={() => setShowCollectionModal(true)}
                   >
                     <Plus className="h-4 w-4 mr-1" />
-                    <span>Create Collection</span>
+                    <span>Criar Coleção</span>
                   </Button>
                 </div>
               ) : (
@@ -142,13 +142,13 @@ export default function Home() {
             </div>
           </section>
           
-          {/* Recently Downloaded Videos */}
+          {/* Vídeos Baixados Recentemente */}
           <section className="mb-8">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold">Recently Downloaded Videos</h2>
+              <h2 className="text-lg font-bold">Vídeos Baixados Recentemente</h2>
               <Link href="/downloads">
                 <Button variant="ghost" className="group text-accent hover:text-blue-700 text-sm font-medium">
-                  View all
+                  Ver todos
                   <ChevronRight className="ml-1 h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
                 </Button>
               </Link>
@@ -157,10 +157,10 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {downloadedVideos.length === 0 ? (
                 <div className="col-span-full p-8 text-center text-gray-500 bg-white rounded-lg shadow">
-                  <p>No downloaded videos yet. Search for videos to download.</p>
+                  <p>Nenhum vídeo baixado ainda. Busque vídeos para baixar.</p>
                   <Link href="/search">
                     <Button variant="default" className="mt-4">
-                      Search Videos
+                      Buscar Vídeos
                     </Button>
                   </Link>
                 </div>
@@ -179,11 +179,11 @@ export default function Home() {
         
         <TabsContent value="recentDownloads">
           <div className="p-8 text-center">
-            <p className="text-xl font-medium">View all your downloads</p>
-            <p className="text-gray-500 mt-2">Go to the Downloads page to see your full download history</p>
+            <p className="text-xl font-medium">Veja todos os seus downloads</p>
+            <p className="text-gray-500 mt-2">Acesse a página de Downloads para ver seu histórico completo</p>
             <Link href="/downloads">
               <Button className="mt-4">
-                Go to Downloads
+                Ir para Downloads
               </Button>
             </Link>
           </div>
@@ -191,11 +191,11 @@ export default function Home() {
         
         <TabsContent value="collections">
           <div className="p-8 text-center">
-            <p className="text-xl font-medium">Manage your collections</p>
-            <p className="text-gray-500 mt-2">Go to the Collections page to see and manage all your collections</p>
+            <p className="text-xl font-medium">Gerencie suas coleções</p>
+            <p className="text-gray-500 mt-2">Acesse a página de Coleções para ver e gerenciar todas as suas coleções</p>
             <Link href="/collections">
               <Button className="mt-4">
-                Go to Collections
+                Ir para Coleções
               </Button>
             </Link>
           </div>
@@ -203,11 +203,11 @@ export default function Home() {
         
         <TabsContent value="history">
           <div className="p-8 text-center">
-            <p className="text-xl font-medium">View your download history</p>
-            <p className="text-gray-500 mt-2">Go to the History page to see your complete download history</p>
+            <p className="text-xl font-medium">Veja seu histórico de downloads</p>
+            <p className="text-gray-500 mt-2">Acesse a página de Histórico para ver seu histórico completo de downloads</p>
             <Link href="/history">
               <Button className="mt-4">
-                Go to History
+                Ir para Histórico
               </Button>
             </Link>
           </div>

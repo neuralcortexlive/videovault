@@ -16,12 +16,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
-      console.log("Header search initiated for:", searchQuery);
+      console.log("Busca iniciada para:", searchQuery);
       
-      // Add search query to URL as query parameter
+      // Adiciona query de busca como parâmetro na URL
       const query = encodeURIComponent(searchQuery.trim());
       
-      // Navigate directly to search page with query parameter
+      // Navega direto para página de busca com o parâmetro
       navigate(`/search?q=${query}`);
     }
   };
@@ -58,7 +58,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <div className="relative">
             <Input
               type="text"
-              placeholder="Search YouTube videos..."
+              placeholder="Buscar vídeos no YouTube..."
               className="w-full px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary focus:border-transparent"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

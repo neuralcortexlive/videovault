@@ -42,7 +42,7 @@ export default function Sidebar({ open }: SidebarProps) {
                   className="w-full justify-start"
                 >
                   <Home className="mr-3 h-5 w-5 text-primary" />
-                  <span>Dashboard</span>
+                  <span>Início</span>
                 </Button>
               </Link>
             </li>
@@ -53,7 +53,7 @@ export default function Sidebar({ open }: SidebarProps) {
                   className="w-full justify-start"
                 >
                   <Search className="mr-3 h-5 w-5" />
-                  <span>Search</span>
+                  <span>Buscar</span>
                 </Button>
               </Link>
             </li>
@@ -75,19 +75,19 @@ export default function Sidebar({ open }: SidebarProps) {
                   className="w-full justify-start"
                 >
                   <History className="mr-3 h-5 w-5" />
-                  <span>History</span>
+                  <span>Histórico</span>
                 </Button>
               </Link>
             </li>
             <li className="mb-4">
               <Button variant="ghost" className="w-full justify-start">
                 <Settings className="mr-3 h-5 w-5" />
-                <span>Settings</span>
+                <span>Configurações</span>
               </Button>
             </li>
             
             <li className="mb-2">
-              <h3 className="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Collections</h3>
+              <h3 className="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Coleções</h3>
             </li>
             
             {collections.map(collection => (
@@ -111,7 +111,7 @@ export default function Sidebar({ open }: SidebarProps) {
                 onClick={() => setShowCollectionModal(true)}
               >
                 <Plus className="mr-2 h-5 w-5" />
-                <span>New Collection</span>
+                <span>Nova Coleção</span>
               </Button>
             </li>
           </ul>
