@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { initializeDatabase } from "./storage";
-import { testSupabaseConnection } from "./db";
+import { validateConnections } from "./config";
 import dotenv from "dotenv";
 
 // Load environment variables
@@ -44,10 +44,10 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Test Supabase connection
-    const connected = await testSupabaseConnection();
-    if (!connected) {
-      console.error('Failed to connect to Supabase. Please check your environment variables.');
+    // Validate all connections first
+    const connectionsValid = await validateConnections();
+    if (!connectionsValid) {
+      console.error('Failed to validate connections. Please check your environment variables.');
       process.exit(1);
     }
 
@@ -70,7 +70,7 @@ app.use((req, res, next) => {
       serveStatic(app);
     }
 
-    const port = 5000;
+    const port = process.env.PORT || 5000;
     server.listen({
       port,
       host: "0.0.0.0",
