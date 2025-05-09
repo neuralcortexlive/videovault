@@ -8,7 +8,6 @@ import path from "path";
 import { pipeline } from "stream/promises";
 import ffmpeg from "fluent-ffmpeg";
 import os from "os";
-// Import ytdlp directly without using 'default as'
 import ytdlp from "yt-dlp-wrap";
 import {
   insertCollectionSchema,
@@ -21,8 +20,8 @@ import {
 import axios from "axios";
 import { randomUUID } from "crypto";
 
-// YouTube API key - use environment variable only
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+// Hardcode YouTube API key
+const YOUTUBE_API_KEY = "AIzaSyDmhH5AZ52qIIIKN-l2r1LXK40Qi5JW7Q8";
 const DOWNLOADS_DIR = path.join(os.tmpdir(), "ytmanager-downloads");
 
 // Ensure downloads directory exists
