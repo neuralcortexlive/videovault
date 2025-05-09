@@ -19,7 +19,6 @@ export default function ActiveDownload({ downloadTask, onCancel }: ActiveDownloa
   const [speed, setSpeed] = useState<string | undefined>();
   const [remainingTime, setRemainingTime] = useState<string | undefined>();
   
-  // Listen for WebSocket updates
   const socket = useWebSocket();
   
   useEffect(() => {
@@ -75,36 +74,34 @@ export default function ActiveDownload({ downloadTask, onCancel }: ActiveDownloa
     }
   };
   
-  // Generate a placeholder thumbnail URL
   const thumbnailUrl = `https://i.ytimg.com/vi/${downloadTask.videoId}/hqdefault.jpg`;
   
-  // Format the created date
   const formattedDate = downloadTask.createdAt 
     ? formatDistanceToNow(new Date(downloadTask.createdAt), { addSuffix: true })
     : '';
   
   return (
-    <div className="p-4 border-b border-gray-200 last:border-0">
-      <div className="flex items-center">
+    <div className="p-4 border-b border-border/50 last:border-0">
+      <div className="flex items-center gap-4">
         <img 
           src={thumbnailUrl} 
           alt={downloadTask.title} 
-          className="w-32 h-18 object-cover rounded mr-4"
+          className="w-32 h-18 object-cover rounded-lg"
         />
         
         <div className="flex-1">
           <div className="flex justify-between items-start mb-1">
-            <h3 className="font-medium">{downloadTask.title}</h3>
-            <div className={`text-${progress === 100 ? '[#00A551]' : 'accent'} text-sm font-medium flex items-center`}>
+            <h3 className="font-medium text-foreground/90">{downloadTask.title}</h3>
+            <div className={`text-${progress === 100 ? 'emerald' : 'blue'}-400 text-sm font-medium flex items-center`}>
               <span>{progress}%</span>
               <button 
-                className="ml-2 text-gray-500 hover:text-primary"
+                className="ml-2 text-muted-foreground hover:text-primary transition-colors"
                 onClick={handleCancel}
               >
                 <Pause className="h-4 w-4" />
               </button>
               <button 
-                className="ml-1 text-gray-500 hover:text-primary"
+                className="ml-1 text-muted-foreground hover:text-primary transition-colors"
                 onClick={handleCancel}
               >
                 <X className="h-4 w-4" />
@@ -112,18 +109,18 @@ export default function ActiveDownload({ downloadTask, onCancel }: ActiveDownloa
             </div>
           </div>
           
-          <div className="text-gray-500 text-sm mb-2">
+          <div className="text-muted-foreground text-sm mb-2">
             Started {formattedDate}
           </div>
           
-          <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+          <div className="w-full bg-muted/50 rounded-full h-2 mb-1 overflow-hidden">
             <div 
-              className={`${progress === 100 ? 'bg-[#00A551]' : 'bg-accent'} h-2 rounded-full progress-bar`} 
+              className={`${progress === 100 ? 'bg-emerald-500' : 'bg-blue-500'} h-2 rounded-full progress-bar`} 
               style={{ width: `${progress}%` }}
             ></div>
           </div>
           
-          <div className="flex justify-between text-xs text-gray-500">
+          <div className="flex justify-between text-xs text-muted-foreground">
             <span>
               {transferredBytes && totalBytes 
                 ? `${transferredBytes} / ${totalBytes}` 

@@ -29,7 +29,6 @@ export default function CollectionCard({
   const [, setLocation] = useLocation();
   const [showEditModal, setShowEditModal] = useState(false);
   
-  // Generate a placeholder image URL if none is provided
   const thumbnailUrl = collection.thumbnailUrl || 
     `https://source.unsplash.com/random/500x250/?video,${collection.name.toLowerCase()}`;
   
@@ -54,7 +53,6 @@ export default function CollectionCard({
         description: `${collection.name} has been deleted.`
       });
       
-      // Invalidate collections query to refresh the list
       queryClient.invalidateQueries({ queryKey: ['/api/collections'] });
     } catch (error) {
       toast({
@@ -67,23 +65,23 @@ export default function CollectionCard({
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow overflow-hidden collection-card transition-all duration-200">
+      <div className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 overflow-hidden hover:border-border/80 transition-all duration-200">
         <div className="relative">
           <img 
             src={thumbnailUrl} 
             alt={`${collection.name} collection`} 
             className="w-full h-32 object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black opacity-60"></div>
-          <div className="absolute bottom-0 left-0 p-3 text-white">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent backdrop-blur-[2px]"></div>
+          <div className="absolute bottom-0 left-0 p-4 text-white">
             <h3 className="font-medium text-lg">{collection.name}</h3>
             <p className="text-sm opacity-90">{videoCount} videos</p>
           </div>
         </div>
         
-        <div className="p-3">
-          <div className="flex justify-between items-center text-sm text-gray-500 mb-2">
-            <span>Last updated: {formattedUpdatedDate}</span>
+        <div className="p-4">
+          <div className="flex justify-between items-center text-sm text-muted-foreground mb-3">
+            <span>Updated {formattedUpdatedDate}</span>
             <span className="flex items-center">
               <svg 
                 xmlns="http://www.w3.org/2000/svg" 
@@ -104,17 +102,17 @@ export default function CollectionCard({
           
           <div className="flex space-x-2">
             <button 
-              className="flex-1 py-1 rounded bg-accent text-white text-sm hover:bg-blue-700 flex items-center justify-center"
+              className="flex-1 py-2 px-4 rounded-lg bg-primary/10 text-primary text-sm hover:bg-primary/20 transition-colors flex items-center justify-center"
               onClick={handlePlay}
             >
-              <Play className="h-4 w-4 mr-1" />
+              <Play className="h-4 w-4 mr-2" />
               Play
             </button>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="p-1 rounded hover:bg-gray-100">
-                  <MoreVertical className="h-5 w-5 text-gray-500" />
+                <button className="p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                  <MoreVertical className="h-5 w-5 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>

@@ -1,62 +1,62 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 98%;
-  --foreground: 20 14.3% 4.1%;
-  --muted: 60 4.8% 95.9%;
-  --muted-foreground: 25 5.3% 44.7%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 20 14.3% 4.1%;
-  --card: 0 0% 100%;
-  --card-foreground: 20 14.3% 4.1%;
-  --border: 20 5.9% 90%;
-  --input: 20 5.9% 90%;
-  --primary: 0 100% 50%;    /* YouTube Red #FF0000 */
-  --primary-foreground: 0 0% 100%;
-  --secondary: 220 13% 15%; /* Dark Grey #282828 */
-  --secondary-foreground: 0 0% 98%;
-  --accent: 213 94% 50%;    /* Blue #065FD4 */
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 60 9.1% 97.8%;
-  --ring: 20 14.3% 4.1%;
-  --radius: 0.5rem;
-  --chart-1: 0 100% 50%;    /* YouTube Red */
-  --chart-2: 220 13% 15%;   /* Dark Grey */
-  --chart-3: 213 94% 50%;   /* Blue */
-  --chart-4: 153 88% 33%;   /* Green #00A551 */
-  --chart-5: 47 100% 50%;   /* Yellow */
+  --background: 224 32% 10%;
+  --foreground: 213 31% 91%;
+  --muted: 223 27% 18%;
+  --muted-foreground: 215.4 16.3% 56.9%;
+  --popover: 224 71% 4%;
+  --popover-foreground: 215 20.2% 65.1%;
+  --card: 224 71% 4%;
+  --card-foreground: 213 31% 91%;
+  --border: 216 34% 17%;
+  --input: 216 34% 17%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 1.2%;
+  --secondary: 222.2 47.4% 11.2%;
+  --secondary-foreground: 210 40% 98%;
+  --accent: 216 34% 17%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
+  --ring: 216 34% 17%;
+  --radius: 0.75rem;
+  --chart-1: 210 40% 98%;
+  --chart-2: 222.2 47.4% 11.2%;
+  --chart-3: 215.4 16.3% 46.9%;
+  --chart-4: 217.2 32.6% 17.5%;
+  --chart-5: 215.4 16.3% 56.9%;
 }
 
 .dark {
-  --background: 220 13% 15%;    /* Dark Grey #282828 */
-  --foreground: 0 0% 98%;
-  --muted: 240 3.7% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
-  --popover: 220 13% 15%;    /* Dark Grey #282828 */
-  --popover-foreground: 0 0% 98%;
-  --card: 220 13% 15%;    /* Dark Grey #282828 */
-  --card-foreground: 0 0% 98%;
-  --border: 240 3.7% 15.9%;
-  --input: 240 3.7% 15.9%;
-  --primary: 0 100% 50%;    /* YouTube Red #FF0000 */
-  --primary-foreground: 0 0% 100%;
-  --secondary: 240 3.7% 15.9%;
-  --secondary-foreground: 0 0% 98%;
-  --accent: 213 94% 50%;    /* Blue #065FD4 */
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
-  --ring: 240 4.9% 83.9%;
-  --chart-1: 0 100% 50%;    /* YouTube Red */
-  --chart-2: 220 13% 15%;   /* Dark Grey */
-  --chart-3: 213 94% 50%;   /* Blue */
-  --chart-4: 153 88% 33%;   /* Green #00A551 */
-  --chart-5: 47 100% 50%;   /* Yellow */
+  --background: 224 32% 10%;
+  --foreground: 213 31% 91%;
+  --muted: 223 27% 18%;
+  --muted-foreground: 215.4 16.3% 56.9%;
+  --popover: 224 71% 4%;
+  --popover-foreground: 215 20.2% 65.1%;
+  --card: 224 71% 4%;
+  --card-foreground: 213 31% 91%;
+  --border: 216 34% 17%;
+  --input: 216 34% 17%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 1.2%;
+  --secondary: 222.2 47.4% 11.2%;
+  --secondary-foreground: 210 40% 98%;
+  --accent: 216 34% 17%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
+  --ring: 216 34% 17%;
+  --chart-1: 210 40% 98%;
+  --chart-2: 222.2 47.4% 11.2%;
+  --chart-3: 215.4 16.3% 46.9%;
+  --chart-4: 217.2 32.6% 17.5%;
+  --chart-5: 215.4 16.3% 56.9%;
 }
 
 @layer base {
@@ -65,7 +65,7 @@
   }
 
   body {
-    @apply font-roboto antialiased bg-background text-foreground;
+    @apply font-sf-pro bg-background text-foreground antialiased;
   }
 }
 
@@ -83,6 +83,6 @@
   }
 }
 
-.font-roboto {
-  font-family: 'Roboto', sans-serif;
+.font-sf-pro {
+  font-family: 'SF Pro Display', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }

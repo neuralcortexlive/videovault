@@ -30,7 +30,6 @@ export default function VideoCard({
   
   const isYouTubeResult = 'snippet' in video;
   
-  // Extract video data based on the type
   const videoId = isYouTubeResult ? video.id.videoId : video.videoId;
   const title = isYouTubeResult ? video.snippet.title : video.title;
   const channelTitle = isYouTubeResult ? video.snippet.channelTitle : video.channelTitle || '';
@@ -39,7 +38,6 @@ export default function VideoCard({
     : video.thumbnailUrl || '';
   const publishedAt = isYouTubeResult ? video.snippet.publishedAt : video.publishedAt;
   
-  // Format the published date if available
   const formattedDate = publishedAt ? formatDistanceToNow(new Date(publishedAt), { addSuffix: true }) : '';
 
   const handleDownload = () => {
@@ -66,14 +64,13 @@ export default function VideoCard({
     }
   };
 
-  // Calculate a fake duration for demo (would normally come from the API)
   const durationMinutes = Math.floor(Math.random() * 20) + 5;
   const durationSeconds = Math.floor(Math.random() * 60);
   const durationFormatted = `${durationMinutes}:${durationSeconds.toString().padStart(2, '0')}`;
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow overflow-hidden video-card-hover transition-all duration-200">
+      <div className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 overflow-hidden hover:border-border/80 transition-all duration-200">
         <div className="relative">
           <img 
             src={thumbnailUrl} 
@@ -81,30 +78,28 @@ export default function VideoCard({
             className="w-full h-40 object-cover"
           />
           
-          <span className="absolute bottom-2 right-2 bg-black bg-opacity-80 text-white text-xs px-1 rounded">
+          <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded-md backdrop-blur-sm">
             {durationFormatted}
           </span>
           
           {isDownloaded && (
-            <div className="absolute top-2 left-2 bg-[#00A551] text-white text-xs px-1 py-0.5 rounded-sm">
+            <div className="absolute top-2 left-2 bg-emerald-500/90 text-white text-xs px-2 py-0.5 rounded-md backdrop-blur-sm">
               DOWNLOADED
             </div>
           )}
           
           {isDownloading && (
-            <div className="absolute top-2 left-2 bg-accent text-white text-xs px-1 py-0.5 rounded-sm">
+            <div className="absolute top-2 left-2 bg-blue-500/90 text-white text-xs px-2 py-0.5 rounded-md backdrop-blur-sm">
               DOWNLOADING
             </div>
           )}
           
           <button 
-            className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 bg-black bg-opacity-50 transition-opacity duration-200"
+            className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
             onClick={() => {
-              console.log("Play button clicked for video:", videoId);
               if (onPlay) {
                 onPlay();
               } else {
-                // Show embedded video player
                 setShowVideoPlayer(true);
               }
             }}
@@ -113,11 +108,11 @@ export default function VideoCard({
           </button>
         </div>
         
-        <div className="p-3">
-          <h3 className="font-medium text-sm line-clamp-2 h-10">{title}</h3>
+        <div className="p-4">
+          <h3 className="font-medium text-sm line-clamp-2 h-10 text-foreground/90">{title}</h3>
           
           <div className="flex justify-between items-center mt-2">
-            <div className="text-gray-500 text-xs">
+            <div className="text-muted-foreground text-xs">
               {channelTitle} {formattedDate ? `• ${formattedDate}` : ''}
             </div>
             
@@ -125,7 +120,7 @@ export default function VideoCard({
               {isDownloading ? (
                 <button 
                   title="Cancel download" 
-                  className="text-accent"
+                  className="text-blue-400 hover:text-blue-300 transition-colors"
                   onClick={handleCancelDownload}
                 >
                   <Pause className="h-5 w-5" />
@@ -133,13 +128,11 @@ export default function VideoCard({
               ) : isDownloaded ? (
                 <button 
                   title="Play downloaded version" 
-                  className="text-[#00A551]"
+                  className="text-emerald-400 hover:text-emerald-300 transition-colors"
                   onClick={() => {
-                    console.log("Small play button clicked for video:", videoId);
                     if (onPlay) {
                       onPlay();
                     } else {
-                      // Show embedded video player
                       setShowVideoPlayer(true);
                     }
                   }}
@@ -149,7 +142,7 @@ export default function VideoCard({
               ) : (
                 <button 
                   title="Download" 
-                  className="text-gray-500 hover:text-primary"
+                  className="text-muted-foreground hover:text-primary transition-colors"
                   onClick={handleDownload}
                 >
                   <Download className="h-5 w-5" />
@@ -159,7 +152,7 @@ export default function VideoCard({
               {showCollectionButton && (
                 <button 
                   title="Add to collection" 
-                  className="text-gray-500 hover:text-accent"
+                  className="text-muted-foreground hover:text-primary transition-colors"
                   onClick={handleAddToCollection}
                 >
                   <Plus className="h-5 w-5" />
