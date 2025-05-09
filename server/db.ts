@@ -1,10 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../shared/schema';
 
-// Hardcoded Supabase connection details
-const supabaseUrl = 'https://uysatbupbbnjbvgckays.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5c2F0YnVwYmJuamJ2Z2NrYXlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2NzYxMjksImV4cCI6MjA2MjI1MjEyOX0.NpqSkNBr2LZfGRsZm7JeTfi99zd_V5Lr8C54MAvdlKY';
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5c2F0YnVwYmJuamJ2Z2NrYXlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NjY3NjEyOSwiZXhwIjoyMDYyMjUyMTI5fQ.v1Wz5QFGSVvmw7AQC2KZhY_2dJPbJxqHPVXOqyB8KDg';
+// Use environment variables for Supabase connection
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+}
 
 // Initialize Supabase client with anon key for client-side operations
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
