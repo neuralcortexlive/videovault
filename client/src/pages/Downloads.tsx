@@ -25,21 +25,21 @@ export default function Downloads() {
             value="active" 
             className="border-primary text-primary data-[state=active]:border-b-2 border-0 rounded-none data-[state=active]:shadow-none py-2 px-1 data-[state=active]:bg-transparent"
           >
-            Active Downloads
+            Downloads Ativos
           </TabsTrigger>
           <TabsTrigger 
             value="completed" 
             className="border-transparent text-gray-500 hover:text-gray-700 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary border-0 rounded-none data-[state=active]:shadow-none py-2 px-1 data-[state=active]:bg-transparent"
           >
-            Completed Downloads
+            Downloads Concluídos
           </TabsTrigger>
         </TabsList>
         
         <TabsContent value="active">
-          <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+          <div className="bg-card rounded-lg shadow overflow-hidden mb-6">
             {activeDownloads.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                <p>No active downloads. Search for videos to download.</p>
+              <div className="p-8 text-center text-muted-foreground">
+                <p>Nenhum download ativo. Busque vídeos para baixar.</p>
               </div>
             ) : (
               activeDownloads.map(download => (
@@ -57,7 +57,7 @@ export default function Downloads() {
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {Array(8).fill(0).map((_, i) => (
-                <div key={i} className="bg-white rounded-lg shadow overflow-hidden">
+                <div key={i} className="bg-card rounded-lg shadow overflow-hidden">
                   <Skeleton className="w-full h-40" />
                   <div className="p-3">
                     <Skeleton className="h-4 w-full mb-2" />
@@ -73,10 +73,10 @@ export default function Downloads() {
               ))}
             </div>
           ) : downloadedVideos.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <h3 className="text-xl font-medium mb-2">No downloaded videos</h3>
-              <p className="text-gray-500">
-                Search for videos and download them to see them here.
+            <div className="bg-card rounded-lg shadow p-8 text-center">
+              <h3 className="text-xl font-medium mb-2">Nenhum vídeo baixado</h3>
+              <p className="text-muted-foreground">
+                Busque vídeos e baixe-os para vê-los aqui.
               </p>
             </div>
           ) : (

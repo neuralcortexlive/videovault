@@ -63,8 +63,8 @@ export default function Search() {
     } catch (error) {
       console.error("Search execution error:", error);
       toast({
-        title: "Search Error",
-        description: "Failed to search. Please try again.", 
+        title: "Erro na Busca",
+        description: "Falha ao buscar. Por favor, tente novamente.", 
         variant: "destructive"
       });
     }
@@ -84,8 +84,8 @@ export default function Search() {
     } catch (error) {
       console.error("Error loading more results:", error);
       toast({
-        title: "Error",
-        description: "Failed to load more results. Please try again.",
+        title: "Erro",
+        description: "Falha ao carregar mais resultados. Por favor, tente novamente.",
         variant: "destructive"
       });
     } finally {
@@ -114,18 +114,18 @@ export default function Search() {
   return (
     <div>
       <div className="flex flex-col space-y-4 mb-6">
-        <h2 className="text-2xl font-bold">Search YouTube</h2>
+        <h2 className="text-2xl font-bold">Buscar no YouTube</h2>
         
         <form onSubmit={handleSearch} className="flex gap-2">
           <div className="flex-1 relative">
             <Input 
               type="text" 
-              placeholder="Search for videos..." 
+              placeholder="Buscar vídeos..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border rounded-lg"
             />
-            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
               <SearchIcon className="h-5 w-5" />
             </div>
           </div>
@@ -134,25 +134,25 @@ export default function Search() {
             disabled={isLoading || !searchQuery.trim() || isButtonDisabled} 
             className="bg-primary hover:bg-primary/90 text-white"
           >
-            {isLoading ? "Searching..." : (isButtonDisabled ? "Processing..." : "Search")}
+            {isLoading ? "Buscando..." : (isButtonDisabled ? "Processando..." : "Buscar")}
           </Button>
         </form>
       </div>
       
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-bold">Results</h2>
+        <h2 className="text-lg font-bold">Resultados</h2>
         <div className="flex items-center">
-          <span className="text-sm text-gray-500 mr-2">Sort:</span>
+          <span className="text-sm text-muted-foreground mr-2">Ordenar:</span>
           <Select value={currentOrder} onValueChange={handleSortChange}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Newest first" />
+              <SelectValue placeholder="Mais recentes" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="date">Newest first</SelectItem>
-              <SelectItem value="relevance">Relevance</SelectItem>
-              <SelectItem value="viewCount">Most viewed</SelectItem>
-              <SelectItem value="title">Title (A-Z)</SelectItem>
-              <SelectItem value="rating">Rating</SelectItem>
+              <SelectItem value="date">Mais recentes</SelectItem>
+              <SelectItem value="relevance">Relevância</SelectItem>
+              <SelectItem value="viewCount">Mais visualizados</SelectItem>
+              <SelectItem value="title">Título (A-Z)</SelectItem>
+              <SelectItem value="rating">Avaliação</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -161,7 +161,7 @@ export default function Search() {
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array(8).fill(0).map((_, i) => (
-            <div key={i} className="bg-white rounded-lg shadow overflow-hidden">
+            <div key={i} className="bg-card rounded-lg shadow overflow-hidden">
               <Skeleton className="w-full h-40" />
               <div className="p-3">
                 <Skeleton className="h-4 w-full mb-2" />
@@ -178,10 +178,10 @@ export default function Search() {
           ))}
         </div>
       ) : results.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <h3 className="text-xl font-medium mb-2">No results found</h3>
-          <p className="text-gray-500">
-            Try searching for something else or change your sort order.
+        <div className="bg-card rounded-lg shadow p-8 text-center">
+          <h3 className="text-xl font-medium mb-2">Nenhum resultado encontrado</h3>
+          <p className="text-muted-foreground">
+            Tente buscar algo diferente ou altere a ordem dos resultados.
           </p>
         </div>
       ) : (
@@ -197,9 +197,9 @@ export default function Search() {
               <Button 
                 onClick={handleLoadMore}
                 disabled={isLoadingMore}
-                className="px-4 py-2 bg-accent text-white rounded-full text-sm font-medium hover:bg-blue-700"
+                className="px-4 py-2 bg-accent text-white rounded-full text-sm font-medium hover:bg-accent/90"
               >
-                {isLoadingMore ? "Loading..." : "Load More Results"}
+                {isLoadingMore ? "Carregando..." : "Carregar Mais Resultados"}
               </Button>
             </div>
           )}

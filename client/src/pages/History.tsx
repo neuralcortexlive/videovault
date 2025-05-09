@@ -57,7 +57,7 @@ export default function History() {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A";
-    return format(new Date(dateString), "MMM dd, yyyy • h:mm a");
+    return format(new Date(dateString), "dd/MM/yyyy • HH:mm");
   };
 
   const formatFileSize = (size?: number) => {
@@ -72,23 +72,23 @@ export default function History() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Download History</h1>
+        <h1 className="text-2xl font-bold">Histórico de Downloads</h1>
         <div className="flex items-center">
-          <span className="text-sm text-gray-500 mr-2">Filter:</span>
+          <span className="text-sm text-muted-foreground mr-2">Filtrar:</span>
           <Select value={filter} onValueChange={setFilter}>
             <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All" />
+              <SelectValue placeholder="Todos" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="failed">Failed</SelectItem>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="completed">Concluídos</SelectItem>
+              <SelectItem value="failed">Falhas</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
       
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-card rounded-lg shadow overflow-hidden">
         {isLoadingHistory ? (
           <div className="p-4">
             {Array(5).fill(0).map((_, i) => (
@@ -98,8 +98,8 @@ export default function History() {
             ))}
           </div>
         ) : sortedHistory.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            <p>No download history available.</p>
+          <div className="p-8 text-center text-muted-foreground">
+            <p>Nenhum histórico de download disponível.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -107,10 +107,10 @@ export default function History() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8"></TableHead>
-                  <TableHead>Video Title</TableHead>
-                  <TableHead className="hidden md:table-cell">Date</TableHead>
-                  <TableHead className="hidden sm:table-cell">Quality</TableHead>
-                  <TableHead className="hidden lg:table-cell">File Size</TableHead>
+                  <TableHead>Título do Vídeo</TableHead>
+                  <TableHead className="hidden md:table-cell">Data</TableHead>
+                  <TableHead className="hidden sm:table-cell">Qualidade</TableHead>
+                  <TableHead className="hidden lg:table-cell">Tamanho</TableHead>
                   <TableHead className="w-28 text-right">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -125,16 +125,16 @@ export default function History() {
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+                        <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
                         {formatDate(download.completedAt || download.createdAt)}
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      {download.quality || "Default"}
+                      {download.quality || "Padrão"}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       <div className="flex items-center">
-                        <Download className="h-4 w-4 mr-2 text-gray-400" />
+                        <Download className="h-4 w-4 mr-2 text-muted-foreground" />
                         {formatFileSize(download.fileSize)}
                       </div>
                     </TableCell>
@@ -145,7 +145,9 @@ export default function History() {
                             download.status === 'failed' ? 'bg-red-100 text-red-800' : 
                             'bg-blue-100 text-blue-800'}`}
                       >
-                        {download.status.charAt(0).toUpperCase() + download.status.slice(1)}
+                        {download.status === 'completed' ? 'Concluído' :
+                         download.status === 'failed' ? 'Falhou' :
+                         download.status === 'downloading' ? 'Baixando' : 'Pendente'}
                       </span>
                     </TableCell>
                   </TableRow>

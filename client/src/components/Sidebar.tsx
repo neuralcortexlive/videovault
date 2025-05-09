@@ -42,7 +42,7 @@ export default function Sidebar({ open }: SidebarProps) {
                   className="w-full justify-start text-sm font-medium"
                 >
                   <Home className="mr-3 h-4 w-4 text-primary" />
-                  <span>Home</span>
+                  <span>Início</span>
                 </Button>
               </Link>
             </li>
@@ -53,7 +53,7 @@ export default function Sidebar({ open }: SidebarProps) {
                   className="w-full justify-start text-sm font-medium"
                 >
                   <Search className="mr-3 h-4 w-4" />
-                  <span>Search</span>
+                  <span>Buscar</span>
                 </Button>
               </Link>
             </li>
@@ -75,7 +75,7 @@ export default function Sidebar({ open }: SidebarProps) {
                   className="w-full justify-start text-sm font-medium"
                 >
                   <History className="mr-3 h-4 w-4" />
-                  <span>History</span>
+                  <span>Histórico</span>
                 </Button>
               </Link>
             </li>
@@ -85,12 +85,12 @@ export default function Sidebar({ open }: SidebarProps) {
                 className="w-full justify-start text-sm font-medium"
               >
                 <Settings className="mr-3 h-4 w-4" />
-                <span>Settings</span>
+                <span>Configurações</span>
               </Button>
             </li>
             
             <li className="pt-4 border-t border-border/50">
-              <h3 className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Collections</h3>
+              <h3 className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coleções</h3>
             </li>
             
             {collections.map(collection => (
@@ -114,7 +114,7 @@ export default function Sidebar({ open }: SidebarProps) {
                 onClick={() => setShowCollectionModal(true)}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                <span>New Collection</span>
+                <span>Nova Coleção</span>
               </Button>
             </li>
           </ul>
