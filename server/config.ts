@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
 import dotenv from "dotenv";
 import fs from "fs";
@@ -8,8 +7,7 @@ dotenv.config();
 
 // Function to set up environment variables from env.txt if needed
 function setupEnvironmentVariables() {
-  // Only read from env.txt if essential variables are missing
-  if (!process.env.SUPABASE_URL && fs.existsSync("env.txt")) {
+  if (!process.env.DATABASE_URL && fs.existsSync("env.txt")) {
     const envContent = fs.readFileSync("env.txt", "utf-8");
     const envLines = envContent.split("\n");
 
@@ -18,7 +16,6 @@ function setupEnvironmentVariables() {
     const pgUser = envLines.find(line => line.startsWith("PGUSER="))?.split("=")[1]?.trim();
     const pgPassword = envLines.find(line => line.startsWith("PGPASSWORD="))?.split("=")[1]?.trim();
 
-    // Set environment variables if found
     if (connectionString) {
       process.env.DATABASE_URL = connectionString;
     }
@@ -35,12 +32,7 @@ function setupEnvironmentVariables() {
 setupEnvironmentVariables();
 
 // Validate required environment variables
-const requiredEnvVars = [
-  'DATABASE_URL',
-  'VITE_SUPABASE_URL',
-  'VITE_SUPABASE_ANON_KEY',
-  'SUPABASE_SERVICE_ROLE_KEY'
-];
+const requiredEnvVars = ['DATABASE_URL'];
 
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
@@ -55,14 +47,6 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
 });
-
-// Configure Supabase client
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 // Test database connection
 pool.on('error', (err) => {
@@ -94,14 +78,11 @@ export async function testConnection() {
 export const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || 'AIzaSyDmhH5AZ52qIIIKN-l2r1LXK40Qi5JW7Q8';
 
 // Export connection testing utilities
-export const testSupabaseConnection = async () => {
-  try {
-    const { data, error } = await supabase.from('collections').select('count');
-    if (error) throw error;
-    console.log('Successfully connected to Supabase');
-    return true;
-  } catch (error) {
-    console.error('Failed to connect to Supabase:', error);
+export async function validateConnections() {
+  const dbConnected = await testConnection();
+  if (!dbConnected) {
+    console.error('Failed to connect to database');
     return false;
   }
-};
+  return true;
+}
