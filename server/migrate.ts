@@ -2,6 +2,10 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 import { migrate } from "drizzle-orm/neon-serverless/migrator";
 import { Pool, neonConfig } from '@neondatabase/serverless';
 import ws from 'ws';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 // Required for Neon serverless
 neonConfig.webSocketConstructor = ws;
@@ -16,15 +20,17 @@ const runMigrations = async () => {
 
   console.log("Running migrations...");
 
-  await migrate(db, {
-    migrationsFolder: "supabase/migrations"
-  });
-
-  console.log("Migrations completed!");
-  await pool.end();
+  try {
+    await migrate(db, {
+      migrationsFolder: "supabase/migrations"
+    });
+    console.log("Migrations completed successfully!");
+  } catch (error) {
+    console.error("Migration failed:", error);
+    process.exit(1);
+  } finally {
+    await pool.end();
+  }
 };
 
-runMigrations().catch((err) => {
-  console.error("Migration failed:", err);
-  process.exit(1);
-});
+runMigrations();

@@ -1,0 +1,95 @@
+/*
+  # Create Collections Schema
+
+  This migration creates the initial collections table and its policies.
+  It uses IF NOT EXISTS checks and proper error handling.
+
+  1. Tables
+    - collections
+      - id (serial, primary key)
+      - name (text, not null)
+      - description (text)
+      - thumbnail_url (text)
+      - created_at (timestamptz, default: now())
+      - updated_at (timestamptz, default: now())
+
+  2. Security
+    - Enable RLS
+    - Add policies for public access
+*/
+
+DO $$ 
+BEGIN
+  -- Create collections table if it doesn't exist
+  CREATE TABLE IF NOT EXISTS collections (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    thumbnail_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+  );
+
+  -- Enable RLS if not already enabled
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_tables 
+    WHERE schemaname = 'public' 
+    AND tablename = 'collections' 
+    AND rowsecurity = true
+  ) THEN
+    ALTER TABLE collections ENABLE ROW LEVEL SECURITY;
+  END IF;
+
+  -- Create policies if they don't exist
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE tablename = 'collections' 
+    AND policyname = 'Allow public read access'
+  ) THEN
+    CREATE POLICY "Allow public read access"
+      ON collections
+      FOR SELECT
+      TO public
+      USING (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE tablename = 'collections' 
+    AND policyname = 'Allow public insert access'
+  ) THEN
+    CREATE POLICY "Allow public insert access"
+      ON collections
+      FOR INSERT
+      TO public
+      WITH CHECK (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE tablename = 'collections' 
+    AND policyname = 'Allow public update access'
+  ) THEN
+    CREATE POLICY "Allow public update access"
+      ON collections
+      FOR UPDATE
+      TO public
+      USING (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE tablename = 'collections' 
+    AND policyname = 'Allow public delete access'
+  ) THEN
+    CREATE POLICY "Allow public delete access"
+      ON collections
+      FOR DELETE
+      TO public
+      USING (true);
+  END IF;
+
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Error creating collections schema: %', SQLERRM;
+  RAISE;
+END $$;
