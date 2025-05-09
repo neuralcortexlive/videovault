@@ -1,30 +1,57 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import { neon, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import ws from 'ws';
 import * as schema from "@shared/schema";
 
+// Configure Neon
 neonConfig.webSocketConstructor = ws;
+neonConfig.useSecureWebSocket = true;
+neonConfig.pipelineTLS = true;
+neonConfig.pipelineConnect = true;
 
-// Use environment variable with fallback
-const DATABASE_URL = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_jV8y7NgZraGo@ep-orange-moon-a4zqsh6t-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require";
+// Validate database URL
+const validateDatabaseUrl = (url: string) => {
+  if (!url) {
+    throw new Error('Database URL is required');
+  }
+  if (!url.includes('sslmode=require')) {
+    throw new Error('Database URL must include sslmode=require for secure connections');
+  }
+  if (!url.startsWith('postgres://') && !url.startsWith('postgresql://')) {
+    throw new Error('Invalid database URL protocol');
+  }
+  return url;
+};
 
-// Add error handling for pool creation
-const createPool = () => {
+// Get and validate DATABASE_URL
+const DATABASE_URL = validateDatabaseUrl(
+  process.env.DATABASE_URL || 
+  "postgresql://neondb_owner:npg_UbvtWd9Gcu5r@ep-orange-moon-a4zqsh6t-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require"
+);
+
+// Create the SQL executor
+const sql = neon(DATABASE_URL);
+
+// Create drizzle instance
+export const db = drizzle(sql, { schema });
+
+// Test the connection
+const testConnection = async () => {
   try {
-    return new Pool({ connectionString: DATABASE_URL });
+    const result = await sql`SELECT 1`;
+    console.log('Database connection successful');
+    return result;
   } catch (error) {
-    console.error('Failed to create database pool:', error);
+    console.error('Database connection failed:', error);
     throw error;
   }
 };
 
-export const pool = createPool();
-export const db = drizzle({ client: pool, schema });
+// Export the sql executor for direct usage
+export { sql };
 
-// Test the connection
-pool.connect()
-  .then(() => console.log('Database connection successful'))
-  .catch(err => {
-    console.error('Database connection failed:', err);
-    throw err;
-  });
+// Initialize connection
+testConnection().catch(error => {
+  console.error('Failed to connect to database:', error);
+  process.exit(1);
+});
