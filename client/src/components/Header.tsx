@@ -49,7 +49,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <div className="relative">
             <Input
               type="text"
-              placeholder="Search videos..."
+              placeholder="Buscar vídeos..."
               className="w-full px-4 py-2 bg-muted/50 border-border/50 rounded-full focus:ring-2 focus:ring-primary/20 focus:border-primary/20"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
