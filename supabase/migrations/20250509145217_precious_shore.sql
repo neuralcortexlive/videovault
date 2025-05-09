@@ -2,7 +2,7 @@
   # Initial Database Schema
   
   This migration creates the core schema for the YouTube video manager application.
-  It uses IF NOT EXISTS checks to handle cases where tables already exist.
+  It consolidates all previous migrations into a single, clean initial schema.
 
   1. Tables
     - collections: Store video collections
