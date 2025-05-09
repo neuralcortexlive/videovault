@@ -1,19 +1,26 @@
-import { pool } from './db';
-import type { Video, Collection, VideoCollection, DownloadTask, DownloadProgress } from '@shared/schema';
+import {
+  videos, Video, InsertVideo,
+  collections, Collection, InsertCollection,
+  videoCollections, VideoCollection, InsertVideoCollection,
+  downloadTasks, DownloadTask, InsertDownloadTask,
+  DownloadProgress
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, and, or, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Videos
   getVideo(id: number): Promise<Video | undefined>;
   getVideoByYouTubeId(videoId: string): Promise<Video | undefined>;
   getAllVideos(): Promise<Video[]>;
-  createVideo(video: Omit<Video, 'id'>): Promise<Video>;
+  createVideo(video: InsertVideo): Promise<Video>;
   updateVideo(id: number, video: Partial<Video>): Promise<Video | undefined>;
   deleteVideo(id: number): Promise<boolean>;
   
   // Collections
   getCollection(id: number): Promise<Collection | undefined>;
   getAllCollections(): Promise<Collection[]>;
-  createCollection(collection: Omit<Collection, 'id' | 'createdAt' | 'updatedAt'>): Promise<Collection>;
+  createCollection(collection: InsertCollection): Promise<Collection>;
   updateCollection(id: number, collection: Partial<Collection>): Promise<Collection | undefined>;
   deleteCollection(id: number): Promise<boolean>;
   
@@ -26,212 +33,515 @@ export interface IStorage {
   getDownloadTask(id: number): Promise<DownloadTask | undefined>;
   getActiveDownloadTasks(): Promise<DownloadTask[]>;
   getCompletedDownloadTasks(): Promise<DownloadTask[]>;
-  createDownloadTask(task: Omit<DownloadTask, 'id' | 'status' | 'progress' | 'createdAt' | 'completedAt'>): Promise<DownloadTask>;
+  createDownloadTask(task: InsertDownloadTask): Promise<DownloadTask>;
   updateDownloadTask(id: number, task: Partial<DownloadTask>): Promise<DownloadTask | undefined>;
   updateDownloadProgress(id: number, progress: Partial<DownloadProgress>): Promise<DownloadTask | undefined>;
   deleteDownloadTask(id: number): Promise<boolean>;
 }
 
-export class DatabaseStorage implements IStorage {
+export class MemStorage implements IStorage {
+  private videos: Map<number, Video>;
+  private collections: Map<number, Collection>;
+  private videoCollections: Map<number, VideoCollection>;
+  private downloadTasks: Map<number, DownloadTask>;
+  private videoIdCounter: number;
+  private collectionIdCounter: number;
+  private videoCollectionIdCounter: number;
+  private downloadTaskIdCounter: number;
+
+  constructor() {
+    this.videos = new Map();
+    this.collections = new Map();
+    this.videoCollections = new Map();
+    this.downloadTasks = new Map();
+    this.videoIdCounter = 1;
+    this.collectionIdCounter = 1;
+    this.videoCollectionIdCounter = 1;
+    this.downloadTaskIdCounter = 1;
+
+    // Initialize with default collections
+    this.createCollection({ name: "Educational", description: "Educational videos" });
+    this.createCollection({ name: "Music Videos", description: "Music videos collection" });
+    this.createCollection({ name: "Tutorials", description: "Tutorial videos" });
+    this.createCollection({ name: "Documentaries", description: "Documentary videos" });
+  }
+
   // Videos
   async getVideo(id: number): Promise<Video | undefined> {
-    const result = await pool.query('SELECT * FROM videos WHERE id = $1', [id]);
-    return result.rows[0];
+    return this.videos.get(id);
   }
 
   async getVideoByYouTubeId(videoId: string): Promise<Video | undefined> {
-    const result = await pool.query('SELECT * FROM videos WHERE video_id = $1', [videoId]);
-    return result.rows[0];
+    return Array.from(this.videos.values()).find(video => video.videoId === videoId);
   }
 
   async getAllVideos(): Promise<Video[]> {
-    const result = await pool.query('SELECT * FROM videos');
-    return result.rows;
+    return Array.from(this.videos.values());
   }
 
-  async createVideo(video: Omit<Video, 'id'>): Promise<Video> {
-    const result = await pool.query(
-      'INSERT INTO videos (video_id, title, description, channel_title, thumbnail_url, published_at, duration, view_count, download_path, format, quality, file_size, is_downloaded, is_watched, downloaded_at, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *',
-      [video.videoId, video.title, video.description, video.channelTitle, video.thumbnailUrl, video.publishedAt, video.duration, video.viewCount, video.downloadPath, video.format, video.quality, video.fileSize, video.isDownloaded, video.isWatched, video.downloadedAt, video.metadata]
-    );
-    return result.rows[0];
+  async createVideo(videoData: InsertVideo): Promise<Video> {
+    const id = this.videoIdCounter++;
+    const video: Video = { ...videoData, id };
+    this.videos.set(id, video);
+    return video;
   }
 
-  async updateVideo(id: number, video: Partial<Video>): Promise<Video | undefined> {
-    const keys = Object.keys(video);
-    const values = Object.values(video);
-    const setClause = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
-    const result = await pool.query(
-      `UPDATE videos SET ${setClause} WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-    return result.rows[0];
+  async updateVideo(id: number, videoData: Partial<Video>): Promise<Video | undefined> {
+    const video = this.videos.get(id);
+    if (!video) return undefined;
+
+    const updatedVideo = { ...video, ...videoData };
+    this.videos.set(id, updatedVideo);
+    return updatedVideo;
   }
 
   async deleteVideo(id: number): Promise<boolean> {
-    try {
-      await pool.query('BEGIN');
-      await pool.query('DELETE FROM video_collections WHERE video_id = $1', [id]);
-      await pool.query('DELETE FROM videos WHERE id = $1', [id]);
-      await pool.query('COMMIT');
-      return true;
-    } catch (error) {
-      await pool.query('ROLLBACK');
-      return false;
+    // Remove video from collections
+    const videoCollectionsToRemove = Array.from(this.videoCollections.values())
+      .filter(vc => vc.videoId === id);
+    
+    for (const vc of videoCollectionsToRemove) {
+      this.videoCollections.delete(vc.id);
     }
+
+    return this.videos.delete(id);
   }
 
   // Collections
   async getCollection(id: number): Promise<Collection | undefined> {
-    const result = await pool.query('SELECT * FROM collections WHERE id = $1', [id]);
-    return result.rows[0];
+    return this.collections.get(id);
   }
 
   async getAllCollections(): Promise<Collection[]> {
-    const result = await pool.query('SELECT * FROM collections');
-    return result.rows;
+    return Array.from(this.collections.values());
   }
 
-  async createCollection(collection: Omit<Collection, 'id' | 'createdAt' | 'updatedAt'>): Promise<Collection> {
-    const result = await pool.query(
-      'INSERT INTO collections (name, description, thumbnail_url) VALUES ($1, $2, $3) RETURNING *',
-      [collection.name, collection.description, collection.thumbnailUrl]
-    );
-    return result.rows[0];
+  async createCollection(collectionData: InsertCollection): Promise<Collection> {
+    const id = this.collectionIdCounter++;
+    const now = new Date();
+    const collection: Collection = { 
+      ...collectionData, 
+      id, 
+      createdAt: now, 
+      updatedAt: now 
+    };
+    this.collections.set(id, collection);
+    return collection;
   }
 
-  async updateCollection(id: number, collection: Partial<Collection>): Promise<Collection | undefined> {
-    const keys = Object.keys(collection);
-    const values = Object.values(collection);
-    const setClause = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
-    const result = await pool.query(
-      `UPDATE collections SET ${setClause}, updated_at = NOW() WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-    return result.rows[0];
+  async updateCollection(id: number, collectionData: Partial<Collection>): Promise<Collection | undefined> {
+    const collection = this.collections.get(id);
+    if (!collection) return undefined;
+
+    const now = new Date();
+    const updatedCollection = { 
+      ...collection, 
+      ...collectionData, 
+      updatedAt: now 
+    };
+    this.collections.set(id, updatedCollection);
+    return updatedCollection;
   }
 
   async deleteCollection(id: number): Promise<boolean> {
-    try {
-      await pool.query('BEGIN');
-      await pool.query('DELETE FROM video_collections WHERE collection_id = $1', [id]);
-      await pool.query('DELETE FROM collections WHERE id = $1', [id]);
-      await pool.query('COMMIT');
-      return true;
-    } catch (error) {
-      await pool.query('ROLLBACK');
-      return false;
+    // Remove all videos from this collection
+    const videoCollectionsToRemove = Array.from(this.videoCollections.values())
+      .filter(vc => vc.collectionId === id);
+    
+    for (const vc of videoCollectionsToRemove) {
+      this.videoCollections.delete(vc.id);
     }
+
+    return this.collections.delete(id);
   }
 
   // Video Collections
   async getVideoCollections(collectionId: number): Promise<Video[]> {
-    const result = await pool.query(
-      'SELECT v.* FROM videos v JOIN video_collections vc ON v.id = vc.video_id WHERE vc.collection_id = $1',
-      [collectionId]
-    );
-    return result.rows;
+    const videoCollections = Array.from(this.videoCollections.values())
+      .filter(vc => vc.collectionId === collectionId);
+    
+    const videos: Video[] = [];
+    for (const vc of videoCollections) {
+      const video = this.videos.get(vc.videoId);
+      if (video) videos.push(video);
+    }
+    
+    return videos;
   }
 
   async addVideoToCollection(videoId: number, collectionId: number): Promise<VideoCollection> {
-    const result = await pool.query(
-      'INSERT INTO video_collections (video_id, collection_id) VALUES ($1, $2) RETURNING *',
-      [videoId, collectionId]
-    );
-    return result.rows[0];
+    // Check if already exists
+    const existing = Array.from(this.videoCollections.values())
+      .find(vc => vc.videoId === videoId && vc.collectionId === collectionId);
+    
+    if (existing) return existing;
+
+    const id = this.videoCollectionIdCounter++;
+    const videoCollection: VideoCollection = { id, videoId, collectionId };
+    this.videoCollections.set(id, videoCollection);
+    return videoCollection;
   }
 
   async removeVideoFromCollection(videoId: number, collectionId: number): Promise<boolean> {
-    const result = await pool.query(
-      'DELETE FROM video_collections WHERE video_id = $1 AND collection_id = $2',
-      [videoId, collectionId]
-    );
-    return result.rowCount > 0;
+    const toRemove = Array.from(this.videoCollections.values())
+      .find(vc => vc.videoId === videoId && vc.collectionId === collectionId);
+    
+    if (!toRemove) return false;
+    return this.videoCollections.delete(toRemove.id);
   }
 
   // Download Tasks
   async getDownloadTask(id: number): Promise<DownloadTask | undefined> {
-    const result = await pool.query('SELECT * FROM download_tasks WHERE id = $1', [id]);
-    return result.rows[0];
+    return this.downloadTasks.get(id);
   }
 
   async getActiveDownloadTasks(): Promise<DownloadTask[]> {
-    const result = await pool.query(
-      "SELECT * FROM download_tasks WHERE status IN ('pending', 'downloading') ORDER BY progress DESC, created_at DESC"
-    );
-    return result.rows;
+    return Array.from(this.downloadTasks.values())
+      .filter(task => task.status === "pending" || task.status === "downloading")
+      .sort((a, b) => {
+        // Sort by progress (highest first)
+        if (a.progress !== b.progress) return b.progress - a.progress;
+        // Then by creation date (newest first)
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
   }
 
   async getCompletedDownloadTasks(): Promise<DownloadTask[]> {
-    const result = await pool.query(
-      "SELECT * FROM download_tasks WHERE status IN ('completed', 'failed') ORDER BY completed_at DESC"
-    );
-    return result.rows;
+    return Array.from(this.downloadTasks.values())
+      .filter(task => task.status === "completed" || task.status === "failed")
+      .sort((a, b) => {
+        // Sort by completion date (newest first)
+        if (a.completedAt && b.completedAt) {
+          return new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime();
+        }
+        return 0;
+      });
   }
 
-  async createDownloadTask(task: Omit<DownloadTask, 'id' | 'status' | 'progress' | 'createdAt' | 'completedAt'>): Promise<DownloadTask> {
-    const result = await pool.query(
-      'INSERT INTO download_tasks (video_id, title, format, quality, collection_id, status, progress) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [task.videoId, task.title, task.format, task.quality, task.collectionId, 'pending', 0]
-    );
-    return result.rows[0];
+  async createDownloadTask(taskData: InsertDownloadTask): Promise<DownloadTask> {
+    const id = this.downloadTaskIdCounter++;
+    const now = new Date();
+    const task: DownloadTask = { 
+      ...taskData, 
+      id, 
+      status: "pending", 
+      progress: 0, 
+      createdAt: now 
+    };
+    this.downloadTasks.set(id, task);
+    return task;
   }
 
-  async updateDownloadTask(id: number, task: Partial<DownloadTask>): Promise<DownloadTask | undefined> {
-    const keys = Object.keys(task);
-    const values = Object.values(task);
-    const setClause = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
-    const result = await pool.query(
-      `UPDATE download_tasks SET ${setClause} WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-    return result.rows[0];
+  async updateDownloadTask(id: number, taskData: Partial<DownloadTask>): Promise<DownloadTask | undefined> {
+    const task = this.downloadTasks.get(id);
+    if (!task) return undefined;
+
+    const updatedTask = { ...task, ...taskData };
+    
+    // If status changed to completed or failed, set completedAt
+    if (
+      (taskData.status === "completed" || taskData.status === "failed") && 
+      task.status !== "completed" && 
+      task.status !== "failed"
+    ) {
+      updatedTask.completedAt = new Date();
+    }
+
+    this.downloadTasks.set(id, updatedTask);
+    return updatedTask;
   }
 
   async updateDownloadProgress(id: number, progress: Partial<DownloadProgress>): Promise<DownloadTask | undefined> {
-    const updates: any = {};
-    
-    if (progress.progress !== undefined) {
-      updates.progress = progress.progress;
-    }
-    
-    if (progress.status !== undefined) {
-      updates.status = progress.status;
-      if (progress.status === 'completed' || progress.status === 'failed') {
-        updates.completed_at = new Date();
-      }
+    const task = this.downloadTasks.get(id);
+    if (!task) return undefined;
+
+    const updatedTask: DownloadTask = {
+      ...task,
+      progress: progress.progress ?? task.progress,
+      status: progress.status ?? task.status
+    };
+
+    // If status changed to completed or failed, set completedAt
+    if (
+      (progress.status === "completed" || progress.status === "failed") && 
+      task.status !== "completed" && 
+      task.status !== "failed"
+    ) {
+      updatedTask.completedAt = new Date();
     }
 
-    const keys = Object.keys(updates);
-    const values = Object.values(updates);
-    const setClause = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
-    
-    const result = await pool.query(
-      `UPDATE download_tasks SET ${setClause} WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-    return result.rows[0];
+    this.downloadTasks.set(id, updatedTask);
+    return updatedTask;
   }
 
   async deleteDownloadTask(id: number): Promise<boolean> {
-    const result = await pool.query('DELETE FROM download_tasks WHERE id = $1', [id]);
-    return result.rowCount > 0;
+    return this.downloadTasks.delete(id);
+  }
+}
+
+export class DatabaseStorage implements IStorage {
+  // Videos
+  async getVideo(id: number): Promise<Video | undefined> {
+    const [video] = await db.select().from(videos).where(eq(videos.id, id));
+    return video;
+  }
+
+  async getVideoByYouTubeId(videoId: string): Promise<Video | undefined> {
+    const [video] = await db.select().from(videos).where(eq(videos.videoId, videoId));
+    return video;
+  }
+
+  async getAllVideos(): Promise<Video[]> {
+    return await db.select().from(videos);
+  }
+
+  async createVideo(video: InsertVideo): Promise<Video> {
+    const [createdVideo] = await db.insert(videos).values(video).returning();
+    return createdVideo;
+  }
+
+  async updateVideo(id: number, video: Partial<Video>): Promise<Video | undefined> {
+    const [updatedVideo] = await db
+      .update(videos)
+      .set(video)
+      .where(eq(videos.id, id))
+      .returning();
+    return updatedVideo;
+  }
+
+  async deleteVideo(id: number): Promise<boolean> {
+    // First delete video collections
+    await db
+      .delete(videoCollections)
+      .where(eq(videoCollections.videoId, id));
+      
+    const [deleted] = await db
+      .delete(videos)
+      .where(eq(videos.id, id))
+      .returning({ id: videos.id });
+    return !!deleted;
+  }
+
+  // Collections
+  async getCollection(id: number): Promise<Collection | undefined> {
+    const [collection] = await db.select().from(collections).where(eq(collections.id, id));
+    return collection;
+  }
+
+  async getAllCollections(): Promise<Collection[]> {
+    return await db.select().from(collections);
+  }
+
+  async createCollection(collection: InsertCollection): Promise<Collection> {
+    const [createdCollection] = await db
+      .insert(collections)
+      .values(collection)
+      .returning();
+    return createdCollection;
+  }
+
+  async updateCollection(id: number, collection: Partial<Collection>): Promise<Collection | undefined> {
+    // Always update the updatedAt timestamp
+    const updateData = {
+      ...collection,
+      updatedAt: new Date()
+    };
+    
+    const [updatedCollection] = await db
+      .update(collections)
+      .set(updateData)
+      .where(eq(collections.id, id))
+      .returning();
+    return updatedCollection;
+  }
+
+  async deleteCollection(id: number): Promise<boolean> {
+    // First delete any video collection mappings
+    await db
+      .delete(videoCollections)
+      .where(eq(videoCollections.collectionId, id));
+    
+    // Then delete the collection
+    const [deleted] = await db
+      .delete(collections)
+      .where(eq(collections.id, id))
+      .returning({ id: collections.id });
+    return !!deleted;
+  }
+
+  // Video Collections
+  async getVideoCollections(collectionId: number): Promise<Video[]> {
+    // Join videos and videoCollections to get videos in a collection
+    const collectionVideos = await db
+      .select({
+        id: videos.id,
+        videoId: videos.videoId,
+        title: videos.title,
+        description: videos.description,
+        channelTitle: videos.channelTitle,
+        thumbnailUrl: videos.thumbnailUrl,
+        publishedAt: videos.publishedAt,
+        duration: videos.duration,
+        viewCount: videos.viewCount,
+        downloadPath: videos.downloadPath,
+        format: videos.format,
+        quality: videos.quality,
+        fileSize: videos.fileSize,
+        isDownloaded: videos.isDownloaded,
+        isWatched: videos.isWatched,
+        downloadedAt: videos.downloadedAt,
+        metadata: videos.metadata,
+      })
+      .from(videoCollections)
+      .innerJoin(videos, eq(videoCollections.videoId, videos.id))
+      .where(eq(videoCollections.collectionId, collectionId));
+      
+    return collectionVideos;
+  }
+
+  async addVideoToCollection(videoId: number, collectionId: number): Promise<VideoCollection> {
+    // Check if it already exists
+    const existing = await db
+      .select()
+      .from(videoCollections)
+      .where(
+        and(
+          eq(videoCollections.videoId, videoId),
+          eq(videoCollections.collectionId, collectionId)
+        )
+      );
+      
+    if (existing.length > 0) {
+      return existing[0];
+    }
+      
+    const [videoCollection] = await db
+      .insert(videoCollections)
+      .values({ videoId, collectionId })
+      .returning();
+    return videoCollection;
+  }
+
+  async removeVideoFromCollection(videoId: number, collectionId: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(videoCollections)
+      .where(
+        and(
+          eq(videoCollections.videoId, videoId),
+          eq(videoCollections.collectionId, collectionId)
+        )
+      )
+      .returning({ id: videoCollections.id });
+    return !!deleted;
+  }
+
+  // Download Tasks
+  async getDownloadTask(id: number): Promise<DownloadTask | undefined> {
+    const [task] = await db.select().from(downloadTasks).where(eq(downloadTasks.id, id));
+    return task;
+  }
+
+  async getActiveDownloadTasks(): Promise<DownloadTask[]> {
+    return await db
+      .select()
+      .from(downloadTasks)
+      .where(
+        or(
+          eq(downloadTasks.status, 'pending'),
+          eq(downloadTasks.status, 'downloading')
+        )
+      )
+      .orderBy(desc(downloadTasks.progress), desc(downloadTasks.createdAt));
+  }
+
+  async getCompletedDownloadTasks(): Promise<DownloadTask[]> {
+    return await db
+      .select()
+      .from(downloadTasks)
+      .where(
+        or(
+          eq(downloadTasks.status, 'completed'),
+          eq(downloadTasks.status, 'failed')
+        )
+      )
+      .orderBy(desc(downloadTasks.completedAt));
+  }
+
+  async createDownloadTask(task: InsertDownloadTask): Promise<DownloadTask> {
+    const [createdTask] = await db
+      .insert(downloadTasks)
+      .values({
+        ...task,
+        status: 'pending',
+        progress: 0
+      })
+      .returning();
+    return createdTask;
+  }
+
+  async updateDownloadTask(id: number, task: Partial<DownloadTask>): Promise<DownloadTask | undefined> {
+    // If status changed to completed or failed, set completedAt
+    if (
+      (task.status === "completed" || task.status === "failed")
+    ) {
+      task.completedAt = new Date();
+    }
+    
+    const [updatedTask] = await db
+      .update(downloadTasks)
+      .set(task)
+      .where(eq(downloadTasks.id, id))
+      .returning();
+    return updatedTask;
+  }
+
+  async updateDownloadProgress(id: number, progress: Partial<DownloadProgress>): Promise<DownloadTask | undefined> {
+    // Prepare the update data
+    const updateData: Partial<DownloadTask> = {};
+    
+    if (progress.progress !== undefined) {
+      updateData.progress = progress.progress;
+    }
+    
+    if (progress.status !== undefined) {
+      updateData.status = progress.status;
+      
+      // If download is completed or failed, set completedAt
+      if (progress.status === 'completed' || progress.status === 'failed') {
+        updateData.completedAt = new Date();
+      }
+    }
+    
+    const [updatedTask] = await db
+      .update(downloadTasks)
+      .set(updateData)
+      .where(eq(downloadTasks.id, id))
+      .returning();
+    
+    return updatedTask;
+  }
+
+  async deleteDownloadTask(id: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(downloadTasks)
+      .where(eq(downloadTasks.id, id))
+      .returning({ id: downloadTasks.id });
+    return !!deleted;
   }
 }
 
 // Initialize database with sample collections
 export async function initializeDatabase() {
-  const result = await pool.query('SELECT COUNT(*) FROM collections');
+  const existingCollections = await db.select().from(collections);
   
-  if (parseInt(result.rows[0].count) === 0) {
+  if (existingCollections.length === 0) {
     // Add default collections
-    await pool.query(`
-      INSERT INTO collections (name, description) VALUES
-      ('Educational', 'Educational videos'),
-      ('Music Videos', 'Music videos collection'),
-      ('Tutorials', 'Tutorial videos'),
-      ('Documentaries', 'Documentary videos')
-    `);
+    await db.insert(collections).values([
+      { name: "Educational", description: "Educational videos" },
+      { name: "Music Videos", description: "Music videos collection" },
+      { name: "Tutorials", description: "Tutorial videos" },
+      { name: "Documentaries", description: "Documentary videos" }
+    ]);
   }
 }
 
