@@ -1,4 +1,4 @@
-import { supabase } from './db';
+import { pool } from './db';
 import type { Video, Collection, VideoCollection, DownloadTask, DownloadProgress } from '@shared/schema';
 
 export interface IStorage {
@@ -35,230 +35,203 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // Videos
   async getVideo(id: number): Promise<Video | undefined> {
-    const { data } = await supabase.from('videos').select('*').eq('id', id).single();
-    return data || undefined;
+    const result = await pool.query('SELECT * FROM videos WHERE id = $1', [id]);
+    return result.rows[0];
   }
 
   async getVideoByYouTubeId(videoId: string): Promise<Video | undefined> {
-    const { data } = await supabase.from('videos').select('*').eq('video_id', videoId).single();
-    return data || undefined;
+    const result = await pool.query('SELECT * FROM videos WHERE video_id = $1', [videoId]);
+    return result.rows[0];
   }
 
   async getAllVideos(): Promise<Video[]> {
-    const { data } = await supabase.from('videos').select('*');
-    return data || [];
+    const result = await pool.query('SELECT * FROM videos');
+    return result.rows;
   }
 
   async createVideo(video: Omit<Video, 'id'>): Promise<Video> {
-    const { data, error } = await supabase.from('videos').insert([video]).select().single();
-    if (error) throw error;
-    return data;
+    const result = await pool.query(
+      'INSERT INTO videos (video_id, title, description, channel_title, thumbnail_url, published_at, duration, view_count, download_path, format, quality, file_size, is_downloaded, is_watched, downloaded_at, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *',
+      [video.videoId, video.title, video.description, video.channelTitle, video.thumbnailUrl, video.publishedAt, video.duration, video.viewCount, video.downloadPath, video.format, video.quality, video.fileSize, video.isDownloaded, video.isWatched, video.downloadedAt, video.metadata]
+    );
+    return result.rows[0];
   }
 
   async updateVideo(id: number, video: Partial<Video>): Promise<Video | undefined> {
-    const { data } = await supabase.from('videos').update(video).eq('id', id).select().single();
-    return data || undefined;
+    const keys = Object.keys(video);
+    const values = Object.values(video);
+    const setClause = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
+    const result = await pool.query(
+      `UPDATE videos SET ${setClause} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return result.rows[0];
   }
 
   async deleteVideo(id: number): Promise<boolean> {
     try {
-      // Delete video collections first
-      await supabase.from('video_collections').delete().eq('video_id', id);
-      
-      // Then delete the video
-      const { error } = await supabase.from('videos').delete().eq('id', id);
-      return !error;
+      await pool.query('BEGIN');
+      await pool.query('DELETE FROM video_collections WHERE video_id = $1', [id]);
+      await pool.query('DELETE FROM videos WHERE id = $1', [id]);
+      await pool.query('COMMIT');
+      return true;
     } catch (error) {
+      await pool.query('ROLLBACK');
       return false;
     }
   }
 
   // Collections
   async getCollection(id: number): Promise<Collection | undefined> {
-    const { data } = await supabase.from('collections').select('*').eq('id', id).single();
-    return data || undefined;
+    const result = await pool.query('SELECT * FROM collections WHERE id = $1', [id]);
+    return result.rows[0];
   }
 
   async getAllCollections(): Promise<Collection[]> {
-    const { data } = await supabase.from('collections').select('*');
-    return data || [];
+    const result = await pool.query('SELECT * FROM collections');
+    return result.rows;
   }
 
   async createCollection(collection: Omit<Collection, 'id' | 'createdAt' | 'updatedAt'>): Promise<Collection> {
-    const { data, error } = await supabase.from('collections').insert([collection]).select().single();
-    if (error) throw error;
-    return data;
+    const result = await pool.query(
+      'INSERT INTO collections (name, description, thumbnail_url) VALUES ($1, $2, $3) RETURNING *',
+      [collection.name, collection.description, collection.thumbnailUrl]
+    );
+    return result.rows[0];
   }
 
   async updateCollection(id: number, collection: Partial<Collection>): Promise<Collection | undefined> {
-    const { data } = await supabase
-      .from('collections')
-      .update({ ...collection, updated_at: new Date() })
-      .eq('id', id)
-      .select()
-      .single();
-    return data || undefined;
+    const keys = Object.keys(collection);
+    const values = Object.values(collection);
+    const setClause = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
+    const result = await pool.query(
+      `UPDATE collections SET ${setClause}, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return result.rows[0];
   }
 
   async deleteCollection(id: number): Promise<boolean> {
     try {
-      // Delete video collections first
-      await supabase.from('video_collections').delete().eq('collection_id', id);
-      
-      // Then delete the collection
-      const { error } = await supabase.from('collections').delete().eq('id', id);
-      return !error;
+      await pool.query('BEGIN');
+      await pool.query('DELETE FROM video_collections WHERE collection_id = $1', [id]);
+      await pool.query('DELETE FROM collections WHERE id = $1', [id]);
+      await pool.query('COMMIT');
+      return true;
     } catch (error) {
+      await pool.query('ROLLBACK');
       return false;
     }
   }
 
   // Video Collections
   async getVideoCollections(collectionId: number): Promise<Video[]> {
-    const { data } = await supabase
-      .from('video_collections')
-      .select('videos(*)')
-      .eq('collection_id', collectionId);
-    
-    return (data || []).map(vc => vc.videos);
+    const result = await pool.query(
+      'SELECT v.* FROM videos v JOIN video_collections vc ON v.id = vc.video_id WHERE vc.collection_id = $1',
+      [collectionId]
+    );
+    return result.rows;
   }
 
   async addVideoToCollection(videoId: number, collectionId: number): Promise<VideoCollection> {
-    // Check if it already exists
-    const { data: existing } = await supabase
-      .from('video_collections')
-      .select('*')
-      .eq('video_id', videoId)
-      .eq('collection_id', collectionId)
-      .single();
-    
-    if (existing) return existing;
-    
-    const { data, error } = await supabase
-      .from('video_collections')
-      .insert([{ video_id: videoId, collection_id: collectionId }])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    const result = await pool.query(
+      'INSERT INTO video_collections (video_id, collection_id) VALUES ($1, $2) RETURNING *',
+      [videoId, collectionId]
+    );
+    return result.rows[0];
   }
 
   async removeVideoFromCollection(videoId: number, collectionId: number): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('video_collections')
-        .delete()
-        .eq('video_id', videoId)
-        .eq('collection_id', collectionId);
-      
-      return !error;
-    } catch (error) {
-      return false;
-    }
+    const result = await pool.query(
+      'DELETE FROM video_collections WHERE video_id = $1 AND collection_id = $2',
+      [videoId, collectionId]
+    );
+    return result.rowCount > 0;
   }
 
   // Download Tasks
   async getDownloadTask(id: number): Promise<DownloadTask | undefined> {
-    const { data } = await supabase.from('download_tasks').select('*').eq('id', id).single();
-    return data || undefined;
+    const result = await pool.query('SELECT * FROM download_tasks WHERE id = $1', [id]);
+    return result.rows[0];
   }
 
   async getActiveDownloadTasks(): Promise<DownloadTask[]> {
-    const { data } = await supabase
-      .from('download_tasks')
-      .select('*')
-      .in('status', ['pending', 'downloading'])
-      .order('progress', { ascending: false })
-      .order('created_at', { ascending: false });
-    
-    return data || [];
+    const result = await pool.query(
+      "SELECT * FROM download_tasks WHERE status IN ('pending', 'downloading') ORDER BY progress DESC, created_at DESC"
+    );
+    return result.rows;
   }
 
   async getCompletedDownloadTasks(): Promise<DownloadTask[]> {
-    const { data } = await supabase
-      .from('download_tasks')
-      .select('*')
-      .in('status', ['completed', 'failed'])
-      .order('completed_at', { ascending: false });
-    
-    return data || [];
+    const result = await pool.query(
+      "SELECT * FROM download_tasks WHERE status IN ('completed', 'failed') ORDER BY completed_at DESC"
+    );
+    return result.rows;
   }
 
   async createDownloadTask(task: Omit<DownloadTask, 'id' | 'status' | 'progress' | 'createdAt' | 'completedAt'>): Promise<DownloadTask> {
-    const { data, error } = await supabase
-      .from('download_tasks')
-      .insert([{ ...task, status: 'pending', progress: 0 }])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    const result = await pool.query(
+      'INSERT INTO download_tasks (video_id, title, format, quality, collection_id, status, progress) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [task.videoId, task.title, task.format, task.quality, task.collectionId, 'pending', 0]
+    );
+    return result.rows[0];
   }
 
   async updateDownloadTask(id: number, task: Partial<DownloadTask>): Promise<DownloadTask | undefined> {
-    // If status changed to completed or failed, set completedAt
-    if (task.status === 'completed' || task.status === 'failed') {
-      task.completedAt = new Date();
-    }
-    
-    const { data } = await supabase
-      .from('download_tasks')
-      .update(task)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    return data || undefined;
+    const keys = Object.keys(task);
+    const values = Object.values(task);
+    const setClause = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
+    const result = await pool.query(
+      `UPDATE download_tasks SET ${setClause} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return result.rows[0];
   }
 
   async updateDownloadProgress(id: number, progress: Partial<DownloadProgress>): Promise<DownloadTask | undefined> {
-    const updateData: any = {};
+    const updates: any = {};
     
     if (progress.progress !== undefined) {
-      updateData.progress = progress.progress;
+      updates.progress = progress.progress;
     }
     
     if (progress.status !== undefined) {
-      updateData.status = progress.status;
-      
+      updates.status = progress.status;
       if (progress.status === 'completed' || progress.status === 'failed') {
-        updateData.completed_at = new Date();
+        updates.completed_at = new Date();
       }
     }
+
+    const keys = Object.keys(updates);
+    const values = Object.values(updates);
+    const setClause = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
     
-    const { data } = await supabase
-      .from('download_tasks')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    return data || undefined;
+    const result = await pool.query(
+      `UPDATE download_tasks SET ${setClause} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return result.rows[0];
   }
 
   async deleteDownloadTask(id: number): Promise<boolean> {
-    try {
-      const { error } = await supabase.from('download_tasks').delete().eq('id', id);
-      return !error;
-    } catch (error) {
-      return false;
-    }
+    const result = await pool.query('DELETE FROM download_tasks WHERE id = $1', [id]);
+    return result.rowCount > 0;
   }
 }
 
 // Initialize database with sample collections
 export async function initializeDatabase() {
-  const { data: existingCollections } = await supabase.from('collections').select('*');
+  const result = await pool.query('SELECT COUNT(*) FROM collections');
   
-  if (!existingCollections?.length) {
+  if (parseInt(result.rows[0].count) === 0) {
     // Add default collections
-    await supabase.from('collections').insert([
-      { name: "Educational", description: "Educational videos" },
-      { name: "Music Videos", description: "Music videos collection" },
-      { name: "Tutorials", description: "Tutorial videos" },
-      { name: "Documentaries", description: "Documentary videos" }
-    ]);
+    await pool.query(`
+      INSERT INTO collections (name, description) VALUES
+      ('Educational', 'Educational videos'),
+      ('Music Videos', 'Music videos collection'),
+      ('Tutorials', 'Tutorial videos'),
+      ('Documentaries', 'Documentary videos')
+    `);
   }
 }
 
