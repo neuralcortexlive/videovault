@@ -14,6 +14,16 @@ import { useState } from "react";
 import CollectionModal from "./CollectionModal";
 import { Collection } from "@shared/schema";
 
+// Função para gerar slug a partir do nome
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
 interface SidebarProps {
   open: boolean;
 }
@@ -95,9 +105,9 @@ export default function Sidebar({ open }: SidebarProps) {
             
             {collections.map(collection => (
               <li key={collection.id}>
-                <Link href={`/collections/${collection.id}`}>
+                <Link href={`/collections/${generateSlug(collection.name)}`}>
                   <Button 
-                    variant={location === `/collections/${collection.id}` ? "secondary" : "ghost"} 
+                    variant={location === `/collections/${generateSlug(collection.name)}` ? "secondary" : "ghost"} 
                     className="w-full justify-start text-sm font-medium"
                   >
                     <Folder className="mr-3 h-4 w-4" />

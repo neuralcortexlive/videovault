@@ -31,6 +31,16 @@ if (!fs.existsSync(DOWNLOADS_DIR)) {
   fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
 }
 
+// Função para gerar slug a partir do nome
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
@@ -80,7 +90,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/youtube/search", async (req, res) => {
     try {
       console.log("YouTube search API called with params:", req.query);
-      const { query, maxResults = 12, order = "date", pageToken } = req.query;
+      const { query, maxResults = 12, order = "date", pageToken, type = "both" } = req.query;
       
       if (!query) {
         console.log("Search rejected: No query parameter");
@@ -92,7 +102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "YouTube API key not configured" });
       }
 
-      console.log(`Making YouTube API request for query: "${query}", order: ${order}`);
+      console.log(`Making YouTube API request for query: "${query}", order: ${order}, type: ${type}`);
       
       const params: any = {
         part: "snippet",
@@ -110,7 +120,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const response = await axios.get("https://www.googleapis.com/youtube/v3/search", { params });
       
-      console.log(`YouTube API response successful with ${response.data.items?.length || 0} results`);
+      // Filtrar resultados baseado no tipo
+      let filteredItems = response.data.items || [];
+      
+      if (type === "videos") {
+        filteredItems = filteredItems.filter((item: any) => !item.snippet.title.toLowerCase().includes("#shorts"));
+      } else if (type === "shorts") {
+        filteredItems = filteredItems.filter((item: any) => item.snippet.title.toLowerCase().includes("#shorts"));
+      }
+
+      // Obter detalhes adicionais para cada vídeo
+      const videoIds = filteredItems.map((item: any) => item.id.videoId).join(',');
+      
+      if (videoIds) {
+        const detailsResponse = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
+          params: {
+            part: "contentDetails,statistics",
+            id: videoIds,
+            key: YOUTUBE_API_KEY
+          }
+        });
+
+        // Criar um mapa de detalhes dos vídeos
+        const videoDetailsMap = new Map(
+          detailsResponse.data.items.map((item: any) => [
+            item.id,
+            {
+              duration: item.contentDetails.duration,
+              likeCount: item.statistics.likeCount,
+              viewCount: item.statistics.viewCount
+            }
+          ])
+        );
+
+        // Adicionar detalhes aos resultados da busca
+        filteredItems = filteredItems.map((item: any) => {
+          const details = videoDetailsMap.get(item.id.videoId);
+          return {
+            ...item,
+            contentDetails: details ? {
+              duration: details.duration,
+              likeCount: details.likeCount,
+              viewCount: details.viewCount
+            } : null
+          };
+        });
+      }
+      
+      // Atualizar os itens filtrados na resposta
+      response.data.items = filteredItems;
+      
+      console.log(`YouTube API response successful with ${filteredItems.length} results`);
       return res.json(response.data);
     } catch (error) {
       console.error("YouTube search error:", error);
@@ -427,63 +487,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/collections/:id", async (req, res) => {
+  app.put("/api/collections/:slug", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid collection ID" });
-      }
-
-      const collection = await storage.getCollection(id);
+      const { slug } = req.params;
+      const collections = await storage.getCollections();
+      const collection = collections.find(c => generateSlug(c.name) === slug);
+      
       if (!collection) {
-        return res.status(404).json({ message: "Collection not found" });
+        return res.status(404).json({ message: "Coleção não encontrada" });
       }
 
       const validatedData = insertCollectionSchema.partial().safeParse(req.body);
       if (!validatedData.success) {
-        return res.status(400).json({ message: "Invalid collection data", errors: validatedData.error });
+        return res.status(400).json({ message: "Dados inválidos", errors: validatedData.error });
       }
 
-      const updatedCollection = await storage.updateCollection(id, validatedData.data);
+      const updatedCollection = await storage.updateCollection(collection.id, validatedData.data);
       return res.json(updatedCollection);
     } catch (error) {
       console.error("Update collection error:", error);
-      return res.status(500).json({ message: "Failed to update collection" });
+      return res.status(500).json({ message: "Falha ao atualizar coleção" });
     }
   });
 
-  app.delete("/api/collections/:id", async (req, res) => {
+  app.delete("/api/collections/:slug", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid collection ID" });
+      const { slug } = req.params;
+      const collections = await storage.getAllCollections();
+      const collection = collections.find(c => generateSlug(c.name) === slug);
+      
+      if (!collection) {
+        return res.status(404).json({ message: "Coleção não encontrada" });
       }
 
-      const deleted = await storage.deleteCollection(id);
+      const deleted = await storage.deleteCollection(collection.id);
       if (!deleted) {
-        return res.status(404).json({ message: "Collection not found" });
+        return res.status(404).json({ message: "Coleção não encontrada" });
       }
 
-      return res.json({ message: "Collection deleted" });
+      return res.json({ message: "Coleção excluída" });
     } catch (error) {
       console.error("Delete collection error:", error);
-      return res.status(500).json({ message: "Failed to delete collection" });
+      return res.status(500).json({ message: "Falha ao excluir coleção" });
     }
   });
 
-  app.get("/api/collections/:id/videos", async (req, res) => {
+  app.get("/api/collections/:slug/videos", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid collection ID" });
-      }
-
-      const collection = await storage.getCollection(id);
+      const { slug } = req.params;
+      const collections = await storage.getCollections();
+      const collection = collections.find(c => generateSlug(c.name) === slug);
+      
       if (!collection) {
-        return res.status(404).json({ message: "Collection not found" });
+        return res.status(404).json({ message: "Coleção não encontrada" });
       }
 
-      const videos = await storage.getVideoCollections(id);
+      const videos = await storage.getVideoCollections(collection.id);
       return res.json(videos);
     } catch (error) {
       console.error("Get collection videos error:", error);
@@ -491,18 +550,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/collections/:id/videos", async (req, res) => {
+  app.post("/api/collections/:slug/videos", async (req, res) => {
     try {
-      const collectionId = parseInt(req.params.id);
-      const { videoId } = req.body;
+      const { slug } = req.params;
+      const collections = await storage.getCollections();
+      const collection = collections.find(c => generateSlug(c.name) === slug);
       
-      if (isNaN(collectionId) || !videoId) {
-        return res.status(400).json({ message: "Invalid collection ID or video ID" });
+      if (!collection) {
+        return res.status(404).json({ message: "Coleção não encontrada" });
       }
 
-      const collection = await storage.getCollection(collectionId);
-      if (!collection) {
-        return res.status(404).json({ message: "Collection not found" });
+      const { videoId } = req.body;
+      
+      if (!videoId) {
+        return res.status(400).json({ message: "Video ID is required" });
       }
 
       // Check if video exists in our system, if not, create it
@@ -551,7 +612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Add to collection
-      const videoCollection = await storage.addVideoToCollection(video.id, collectionId);
+      const videoCollection = await storage.addVideoToCollection(video.id, collection.id);
       return res.status(201).json(videoCollection);
     } catch (error) {
       console.error("Add video to collection error:", error);
@@ -559,16 +620,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/collections/:collectionId/videos/:videoId", async (req, res) => {
+  app.delete("/api/collections/:slug/videos/:videoId", async (req, res) => {
     try {
-      const collectionId = parseInt(req.params.collectionId);
-      const videoId = parseInt(req.params.videoId);
+      const { slug, videoId } = req.params;
+      const collections = await storage.getCollections();
+      const collection = collections.find(c => generateSlug(c.name) === slug);
       
-      if (isNaN(collectionId) || isNaN(videoId)) {
-        return res.status(400).json({ message: "Invalid collection ID or video ID" });
+      if (!collection) {
+        return res.status(404).json({ message: "Coleção não encontrada" });
       }
 
-      const deleted = await storage.removeVideoFromCollection(videoId, collectionId);
+      if (!videoId) {
+        return res.status(400).json({ message: "Video ID is required" });
+      }
+
+      const deleted = await storage.removeVideoFromCollection(videoId, collection.id);
       if (!deleted) {
         return res.status(404).json({ message: "Video not found in collection" });
       }

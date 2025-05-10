@@ -4,6 +4,16 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Collection, Video } from "@shared/schema";
 
+// Função para gerar slug a partir do nome
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
 export default function useCollections() {
   const { toast } = useToast();
   
@@ -16,13 +26,13 @@ export default function useCollections() {
     queryKey: ['/api/collections'],
   });
   
-  // Get collection by ID - this is a query creator, not a direct hook
-  const getCollection = (id: number) => {
-    const queryKey = [`/api/collections/${id}`];
+  // Get collection by slug - this is a query creator, not a direct hook
+  const getCollection = (slug: string) => {
+    const queryKey = [`/api/collections/${slug}`];
     const queryFn = async () => {
-      const response = await fetch(`/api/collections/${id}`);
+      const response = await fetch(`/api/collections/${slug}`);
       if (!response.ok) {
-        throw new Error("Failed to fetch collection");
+        throw new Error("Falha ao buscar coleção");
       }
       return await response.json();
     };
@@ -45,14 +55,14 @@ export default function useCollections() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/collections'] });
       toast({
-        title: "Collection Created",
-        description: "Your collection has been created successfully."
+        title: "Coleção Criada",
+        description: "Sua coleção foi criada com sucesso."
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to create collection. Please try again.",
+        title: "Erro",
+        description: "Falha ao criar coleção. Por favor, tente novamente.",
         variant: "destructive"
       });
     }
@@ -67,14 +77,14 @@ export default function useCollections() {
       queryClient.invalidateQueries({ queryKey: ['/api/collections'] });
       queryClient.invalidateQueries({ queryKey: [`/api/collections/${variables.id}`] });
       toast({
-        title: "Collection Updated",
-        description: "Your collection has been updated successfully."
+        title: "Coleção Atualizada",
+        description: "Sua coleção foi atualizada com sucesso."
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to update collection. Please try again.",
+        title: "Erro",
+        description: "Falha ao atualizar coleção. Por favor, tente novamente.",
         variant: "destructive"
       });
     }
@@ -82,20 +92,20 @@ export default function useCollections() {
   
   // Delete collection mutation
   const deleteCollection = useMutation({
-    mutationFn: async (id: number) => {
-      return await apiRequest('DELETE', `/api/collections/${id}`);
+    mutationFn: async (slug: string) => {
+      return await apiRequest('DELETE', `/api/collections/${slug}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/collections'] });
       toast({
-        title: "Collection Deleted",
-        description: "Your collection has been deleted successfully."
+        title: "Coleção Excluída",
+        description: "Sua coleção foi excluída com sucesso."
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to delete collection. Please try again.",
+        title: "Erro",
+        description: "Falha ao excluir coleção. Por favor, tente novamente.",
         variant: "destructive"
       });
     }

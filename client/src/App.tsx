@@ -19,25 +19,23 @@ function Router() {
       <Route path="/downloads" component={Downloads} />
       <Route path="/history" component={History} />
       <Route path="/collections" component={Collections} />
-      <Route path="/collections/:id">
-        {(params) => <Collections id={params.id} />}
+      <Route path="/collections/:slug">
+        {(params) => <Collections id={params.slug} />}
       </Route>
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function App() {
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
         <Layout>
           <Router />
         </Layout>
+        <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
   );
 }
-
-export default App;

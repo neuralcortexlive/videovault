@@ -13,6 +13,17 @@ import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import CollectionModal from "./CollectionModal";
+import { Button } from "@/components/ui/button";
+
+// Função para gerar slug a partir do nome
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
 
 interface CollectionCardProps {
   collection: Collection;
@@ -37,7 +48,7 @@ export default function CollectionCard({
     : '';
 
   const handlePlay = () => {
-    setLocation(`/collections/${collection.id}`);
+    setLocation(`/collections/${generateSlug(collection.name)}`);
   };
 
   const handleEdit = () => {
@@ -49,15 +60,15 @@ export default function CollectionCard({
       await apiRequest('DELETE', `/api/collections/${collection.id}`);
       
       toast({
-        title: "Collection Deleted",
-        description: `${collection.name} has been deleted.`
+        title: "Coleção Excluída",
+        description: `${collection.name} foi excluída.`
       });
       
       queryClient.invalidateQueries({ queryKey: ['/api/collections'] });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to delete collection. Please try again.",
+        title: "Erro",
+        description: "Falha ao excluir coleção. Por favor, tente novamente.",
         variant: "destructive"
       });
     }
@@ -69,19 +80,19 @@ export default function CollectionCard({
         <div className="relative">
           <img 
             src={thumbnailUrl} 
-            alt={`${collection.name} collection`} 
+            alt={`Coleção ${collection.name}`} 
             className="w-full h-32 object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent backdrop-blur-[2px]"></div>
           <div className="absolute bottom-0 left-0 p-4 text-white">
             <h3 className="font-medium text-lg">{collection.name}</h3>
-            <p className="text-sm opacity-90">{videoCount} videos</p>
+            <p className="text-sm opacity-90">{videoCount} vídeos</p>
           </div>
         </div>
         
         <div className="p-4">
           <div className="flex justify-between items-center text-sm text-muted-foreground mb-3">
-            <span>Updated {formattedUpdatedDate}</span>
+            <span>Atualizado {formattedUpdatedDate}</span>
             <span className="flex items-center">
               <svg 
                 xmlns="http://www.w3.org/2000/svg" 
@@ -100,28 +111,32 @@ export default function CollectionCard({
             </span>
           </div>
           
-          <div className="flex space-x-2">
-            <button 
-              className="flex-1 py-2 px-4 rounded-lg bg-primary/10 text-primary text-sm hover:bg-primary/20 transition-colors flex items-center justify-center"
+          <div className="flex justify-between items-center">
+            <Button 
+              variant="ghost" 
+              size="sm"
               onClick={handlePlay}
+              className="text-accent hover:text-blue-700"
             >
-              <Play className="h-4 w-4 mr-2" />
-              Play
-            </button>
+              <Play className="h-4 w-4 mr-1" />
+              Abrir
+            </Button>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                  <MoreVertical className="h-5 w-5 text-muted-foreground" />
-                </button>
+                <Button variant="ghost" size="sm">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={handleEdit}>Edit</DropdownMenuItem>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleEdit}>
+                  Editar
+                </DropdownMenuItem>
                 <DropdownMenuItem 
-                  className="text-destructive focus:text-destructive" 
                   onClick={handleDelete}
+                  className="text-destructive"
                 >
-                  Delete
+                  Excluir
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -132,8 +147,8 @@ export default function CollectionCard({
       <CollectionModal
         open={showEditModal}
         onOpenChange={setShowEditModal}
-        collection={collection}
         mode="edit"
+        collection={collection}
       />
     </>
   );

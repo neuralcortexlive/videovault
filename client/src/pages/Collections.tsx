@@ -22,13 +22,23 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+// Função para gerar slug a partir do nome
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
 interface CollectionsProps {
   id?: string;
 }
 
 export default function Collections({ id }: CollectionsProps) {
   const [, navigate] = useLocation();
-  const [matchedRoute] = useRoute("/collections/:id");
+  const [matchedRoute] = useRoute("/collections/:slug");
   const { 
     collections, 
     isLoadingCollections, 
@@ -42,13 +52,10 @@ export default function Collections({ id }: CollectionsProps) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   
-  const collectionId = id ? parseInt(id) : undefined;
-  const isViewingCollection = !!collectionId;
-  
-  // Get the current collection if viewing a specific one
-  const selectedCollection = collectionId 
-    ? collections.find(c => c.id === collectionId) 
-    : undefined;
+  // Encontrar a coleção pelo slug
+  const selectedCollection = collections.find(c => generateSlug(c.name) === id);
+  const collectionId = selectedCollection?.id;
+  const isViewingCollection = !!id;
   
   // Get videos in the current collection
   const { 
@@ -85,11 +92,15 @@ export default function Collections({ id }: CollectionsProps) {
   
   // Handle deleting collection
   const handleDeleteCollection = async () => {
-    if (collectionId) {
-      await deleteCollection.mutateAsync(collectionId);
-      navigate("/collections");
+    if (selectedCollection) {
+      try {
+        await deleteCollection.mutateAsync(generateSlug(selectedCollection.name));
+        setShowDeleteDialog(false);
+        setSelectedCollection(null);
+      } catch (error) {
+        console.error("Error deleting collection:", error);
+      }
     }
-    setShowDeleteDialog(false);
   };
   
   return (
@@ -105,7 +116,7 @@ export default function Collections({ id }: CollectionsProps) {
                 onClick={() => navigate("/collections")}
               >
                 <ArrowLeft className="h-5 w-5 mr-2" />
-                Back to Collections
+                Voltar para Coleções
               </Button>
               <h1 className="text-2xl font-bold">{selectedCollection?.name}</h1>
             </div>
@@ -116,7 +127,7 @@ export default function Collections({ id }: CollectionsProps) {
                 onClick={handleEditCollection}
               >
                 <Edit className="h-4 w-4 mr-2" />
-                Edit
+                Editar
               </Button>
               <Button 
                 variant="outline" 
@@ -124,54 +135,36 @@ export default function Collections({ id }: CollectionsProps) {
                 onClick={() => setShowDeleteDialog(true)}
               >
                 <TrashIcon className="h-4 w-4 mr-2" />
-                Delete
+                Excluir
               </Button>
             </div>
           </div>
           
           {selectedCollection?.description && (
-            <p className="text-gray-500 mb-4">{selectedCollection.description}</p>
+            <p className="text-muted-foreground mb-4">{selectedCollection.description}</p>
           )}
           
           {isLoadingVideos ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {Array(4).fill(0).map((_, i) => (
-                <div key={i} className="bg-white rounded-lg shadow overflow-hidden">
-                  <Skeleton className="w-full h-40" />
-                  <div className="p-3">
-                    <Skeleton className="h-4 w-full mb-2" />
-                    <Skeleton className="h-4 w-4/5 mb-4" />
-                    <div className="flex justify-between items-center">
-                      <Skeleton className="h-3 w-1/3" />
-                      <div className="flex space-x-1">
-                        <Skeleton className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <Skeleton key={i} className="h-48 rounded-lg" />
               ))}
             </div>
           ) : collectionVideos.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <h3 className="text-xl font-medium mb-2">No videos in this collection</h3>
-              <p className="text-gray-500 mb-4">
-                Search for videos and add them to this collection.
-              </p>
-              <Link href="/search">
-                <Button>
-                  Search Videos
-                </Button>
-              </Link>
+            <div className="text-center py-12 bg-card/50 backdrop-blur-sm rounded-xl border border-border/50">
+              <h3 className="text-lg font-medium text-foreground">Nenhum vídeo nesta coleção</h3>
+              <p className="text-muted-foreground mt-2">Procure por vídeos e adicione-os a esta coleção</p>
+              <Button 
+                className="mt-4"
+                onClick={() => navigate("/search")}
+              >
+                Buscar Vídeos
+              </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {collectionVideos.map((video: Video) => (
-                <VideoCard
-                  key={video.id}
-                  video={video}
-                  isDownloaded={Boolean(video.isDownloaded)}
-                  showCollectionButton={false}
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {collectionVideos.map(video => (
+                <VideoCard key={video.id} video={video} />
               ))}
             </div>
           )}
@@ -180,94 +173,75 @@ export default function Collections({ id }: CollectionsProps) {
         // Collections list view
         <div>
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Collections</h1>
-            <Button 
-              onClick={() => setShowCreateModal(true)}
-              className="bg-primary hover:bg-red-700"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              New Collection
+            <h1 className="text-2xl font-bold">Coleções</h1>
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Coleção
             </Button>
           </div>
           
           {isLoadingCollections ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {Array(4).fill(0).map((_, i) => (
-                <div key={i} className="bg-white rounded-lg shadow overflow-hidden">
-                  <Skeleton className="w-full h-32" />
-                  <div className="p-3">
-                    <Skeleton className="h-4 w-full mb-2" />
-                    <Skeleton className="h-4 w-4/5 mb-4" />
-                    <div className="flex justify-between items-center">
-                      <Skeleton className="h-3 w-1/3" />
-                      <div className="flex space-x-1">
-                        <Skeleton className="h-5 w-5" />
-                        <Skeleton className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <Skeleton key={i} className="h-48 rounded-lg" />
               ))}
             </div>
-          ) : collectionStats.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <h3 className="text-xl font-medium mb-2">No collections</h3>
-              <p className="text-gray-500 mb-4">
-                Create your first collection to organize your videos.
-              </p>
+          ) : collections.length === 0 ? (
+            <div className="text-center py-12 bg-card/50 backdrop-blur-sm rounded-xl border border-border/50">
+              <h3 className="text-lg font-medium text-foreground">Nenhuma coleção ainda</h3>
+              <p className="text-muted-foreground mt-2">Crie sua primeira coleção para organizar seus vídeos</p>
               <Button 
+                className="mt-4"
                 onClick={() => setShowCreateModal(true)}
-                className="bg-primary hover:bg-red-700"
               >
-                <Plus className="h-5 w-5 mr-2" />
-                Create Collection
+                Criar Coleção
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {collectionStats.map(({ collection, videoCount, watchedPercentage }) => (
-                <CollectionCard
-                  key={collection.id}
-                  collection={collection}
-                  videoCount={videoCount}
-                  watchedPercentage={watchedPercentage}
-                />
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {collections.map(collection => {
+                const stats = collectionStats.find(s => s.collection.id === collection.id);
+                return (
+                  <CollectionCard
+                    key={collection.id}
+                    collection={collection}
+                    videoCount={stats?.videoCount || 0}
+                    watchedPercentage={stats?.watchedPercentage || 0}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
       )}
-      
-      {/* Create Collection Modal */}
+
       <CollectionModal
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
       />
-      
-      {/* Edit Collection Modal */}
+
       <CollectionModal
         open={showEditModal}
         onOpenChange={setShowEditModal}
         mode="edit"
         collection={selectedCollection}
       />
-      
-      {/* Delete Confirmation Dialog */}
+
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir Coleção</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this collection. This action cannot be undone.
+              Tem certeza que deseja excluir esta coleção? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
               onClick={handleDeleteCollection}
-              className="bg-destructive hover:bg-red-600"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
