@@ -8,7 +8,7 @@ import path from "path";
 import { pipeline } from "stream/promises";
 import ffmpeg from "fluent-ffmpeg";
 import os from "os";
-import ytdlp from "yt-dlp-wrap";
+import YTDlpWrap from 'yt-dlp-wrap';
 import {
   insertCollectionSchema,
   insertDownloadTaskSchema,
@@ -19,10 +19,12 @@ import {
 } from "@shared/schema";
 import axios from "axios";
 import { randomUUID } from "crypto";
+import { promises as fsPromises } from "fs";
+import ytDlp from 'yt-dlp-exec';
 
 // Hardcode YouTube API key
 const YOUTUBE_API_KEY = "AIzaSyDmhH5AZ52qIIIKN-l2r1LXK40Qi5JW7Q8";
-const DOWNLOADS_DIR = path.join(os.tmpdir(), "ytmanager-downloads");
+const DOWNLOADS_DIR = "/Users/anderson.gogoni/Documents/projetos/videovault";
 
 // Ensure downloads directory exists
 if (!fs.existsSync(DOWNLOADS_DIR)) {
@@ -646,7 +648,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Helper function to download videos using a simulated approach for now
+  // Clear download history
+  app.delete("/api/downloads/history", async (req, res) => {
+    try {
+      await storage.clearDownloadHistory();
+      return res.json({ message: "Download history cleared successfully" });
+    } catch (error) {
+      console.error("Clear download history error:", error);
+      return res.status(500).json({ message: "Failed to clear download history" });
+    }
+  });
+
+  // Helper function to download videos using yt-dlp
   async function downloadWithYtDlp(taskId: number, videoId: string, quality: string = "1080") {
     console.log(`Starting download for task ${taskId}, video ID: ${videoId}, quality: ${quality}`);
     
@@ -676,210 +689,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
     
     try {
-      // Use video title when fetching from YouTube API
-      let title = ""; 
+      // Get video info first
+      const videoInfo = await ytDlp(`https://www.youtube.com/watch?v=${videoId}`, {
+        dumpSingleJson: true,
+        noWarnings: true,
+        noCallHome: true,
+        preferFreeFormats: true,
+        youtubeSkipDashManifest: true
+      });
       
-      // Try to immediately get title if YouTube API key is available
-      try {
-        if (YOUTUBE_API_KEY) {
-          const videoDetails = await axios.get(
-            `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
-          );
-          
-          if (videoDetails.data.items && videoDetails.data.items.length > 0) {
-            title = videoDetails.data.items[0].snippet.title;
-            console.log(`Retrieved video title: ${title}`);
-          }
-        }
-      } catch (err) {
-        console.error("Could not fetch video title:", err);
-      }
+      const title = videoInfo.title || `Video ${videoId}`;
       
-      // If title couldn't be fetched, use videoId instead
-      const safeTitle = title 
-        ? title.replace(/[^a-zA-Z0-9 \-_]/g, "") // Remove special characters
-        : videoId;
-        
-      // Create filename with format: "Video Title - UUID.mp4"
+      // Create safe filename
+      const safeTitle = title.replace(/[^a-zA-Z0-9 \-_]/g, "");
       const uuid = randomUUID();
       const fileName = `${safeTitle} - ${uuid}`;
       const outputFilePath = path.join(DOWNLOADS_DIR, `${fileName}.mp4`);
       
       console.log(`Output file will be saved to: ${outputFilePath}`);
       
-      // IMPORTANT: Using simulated download for reliable progress display
-      console.log("Using simulated download with progress tracking");
-      
-      let progress = 0;
-      let lastReportedProgress = 0;
-      
-      // Create simulated progress updates
-      const simulateProgressInterval = setInterval(async () => {
-        if (progress < 100) {
-          // Increment by random amounts to simulate variable download speeds
-          const increment = Math.random() * 4 + 3; // 3-7% per interval
-          progress += increment;
-          
-          if (progress > 100) {
-            progress = 100;
-          }
-          
-          // Only update if progress changed significantly or reached 100%
-          if ((progress - lastReportedProgress >= 5) || progress === 100) {
-            lastReportedProgress = progress;
+      // Start download with progress tracking
+      await ytDlp(`https://www.youtube.com/watch?v=${videoId}`, {
+        output: outputFilePath,
+        format: `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]`,
+        mergeOutputFormat: 'mp4',
+        progress: true,
+        newline: true,
+        noWarnings: true,
+        noCallHome: true,
+        preferFreeFormats: true,
+        youtubeSkipDashManifest: true,
+        onProgress: async (progress: { percent?: number; speed?: number; eta?: number; totalBytes?: number; downloadedBytes?: number }) => {
+          if (progress.percent) {
+            const percent = Math.floor(progress.percent);
+            console.log(`Download progress: ${percent}%`);
             
-            // Generate simulated stats
-            const speed = `${(Math.random() * 2 + 1.5).toFixed(1)} MB/s`;
-            const eta = progress < 95 ? `${Math.ceil((100 - progress) / 10)} seconds` : "complete";
-            const totalSize = 50 * 1024 * 1024; // 50MB
-            const downloadedSize = Math.floor(totalSize * (progress / 100));
-            
-            console.log(`Download progress: ${progress.toFixed(1)}%, Speed: ${speed}, ETA: ${eta}`);
-            
-            // Update database with progress (ensure progress is an integer)
+            // Update database with progress
             await storage.updateDownloadProgress(taskId, {
               taskId,
               videoId,
-              progress: Math.floor(progress), // Convert to integer to match database type
+              progress: percent,
               status: "downloading",
-              speed,
-              eta,
+              speed: progress.speed ? `${(progress.speed / 1024 / 1024).toFixed(1)} MB/s` : undefined,
+              eta: progress.eta ? `${progress.eta}s` : undefined,
               size: {
-                total: totalSize,
-                transferred: downloadedSize,
-                totalMb: "50 MB",
-                transferredMb: `${Math.floor(50 * (progress / 100))} MB`
+                total: progress.totalBytes || 0,
+                transferred: progress.downloadedBytes || 0,
+                totalMb: progress.totalBytes ? `${(progress.totalBytes / 1024 / 1024).toFixed(1)} MB` : undefined,
+                transferredMb: progress.downloadedBytes ? `${(progress.downloadedBytes / 1024 / 1024).toFixed(1)} MB` : undefined
               }
             });
             
-            // Broadcast progress to all clients (ensure consistency with database)
+            // Broadcast progress
             broadcastDownloadProgress({
               taskId,
               videoId,
-              progress: Math.floor(progress), // Convert to integer for consistency
+              progress: percent,
               status: "downloading",
-              speed,
-              eta,
+              speed: progress.speed ? `${(progress.speed / 1024 / 1024).toFixed(1)} MB/s` : undefined,
+              eta: progress.eta ? `${progress.eta}s` : undefined,
               size: {
-                total: totalSize,
-                transferred: downloadedSize,
-                totalMb: "50 MB",
-                transferredMb: `${Math.floor(50 * (progress / 100))} MB`
+                total: progress.totalBytes || 0,
+                transferred: progress.downloadedBytes || 0,
+                totalMb: progress.totalBytes ? `${(progress.totalBytes / 1024 / 1024).toFixed(1)} MB` : undefined,
+                transferredMb: progress.downloadedBytes ? `${(progress.downloadedBytes / 1024 / 1024).toFixed(1)} MB` : undefined
               }
             });
-            
-            // When download completes
-            if (progress === 100) {
-              clearInterval(simulateProgressInterval);
-              
-              // Create a small placeholder file for demonstration
-              if (!fs.existsSync(DOWNLOADS_DIR)) {
-                fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
-              }
-              fs.writeFileSync(outputFilePath, "Simulated video file for demonstration purposes");
-              
-              const fileSize = fs.statSync(outputFilePath).size;
-              
-              // Update task as completed
-              await storage.updateDownloadTask(taskId, {
-                status: "completed",
-                progress: 100,
-                filePath: outputFilePath,
-                fileSize,
-                completedAt: new Date()
-              });
-              
-              // Find or create video entry in database
-              const existingVideo = await storage.getVideoByYouTubeId(videoId);
-              
-              if (existingVideo) {
-                // Update existing video
-                await storage.updateVideo(existingVideo.id, {
-                  isDownloaded: true,
-                  filePath: outputFilePath,
-                  fileSize
-                });
-                
-                // Add to collection if specified
-                if (collectionId) {
-                  try {
-                    await storage.addVideoToCollection(existingVideo.id, collectionId);
-                    console.log(`Added existing video ${existingVideo.id} to collection ${collectionId}`);
-                  } catch (collectionError) {
-                    console.error("Error adding existing video to collection:", collectionError);
-                  }
-                }
-              } else {
-                // Create new video entry
-                try {
-                  // Try to get title from YouTube first
-                  let title = `YouTube Video ${videoId}`;
-                  let channelTitle = "Unknown Channel";
-                  let description = "Downloaded video";
-                  
-                  try {
-                    if (YOUTUBE_API_KEY) {
-                      const videoDetails = await axios.get(
-                        `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
-                      );
-                      
-                      if (videoDetails.data.items && videoDetails.data.items.length > 0) {
-                        const snippet = videoDetails.data.items[0].snippet;
-                        title = snippet.title;
-                        channelTitle = snippet.channelTitle;
-                        description = snippet.description;
-                      }
-                    }
-                  } catch (apiError) {
-                    console.error("Could not fetch video details from YouTube API:", apiError);
-                  }
-                  
-                  const newVideo = {
-                    videoId,
-                    title,
-                    thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-                    channelTitle,
-                    description,
-                    publishedAt: new Date().toISOString(),
-                    duration: "00:00:00", // Unknown duration
-                    viewCount: "0",
-                    isDownloaded: true,
-                    isWatched: false,
-                    fileSize,
-                    filePath: outputFilePath
-                  };
-                  
-                  // Create the video in database
-                  const createdVideo = await storage.createVideo(newVideo as any);
-                  console.log(`Created video with ID: ${createdVideo.id}`);
-                  
-                  // Add to collection if specified
-                  if (collectionId) {
-                    try {
-                      await storage.addVideoToCollection(createdVideo.id, collectionId);
-                      console.log(`Added new video ${createdVideo.id} to collection ${collectionId}`);
-                    } catch (collectionError) {
-                      console.error("Error adding to collection:", collectionError);
-                    }
-                  }
-                } catch (videoError) {
-                  console.error("Error creating video entry:", videoError);
-                }
-              }
-              
-              // Final progress broadcast
-              broadcastDownloadProgress({
-                taskId,
-                videoId,
-                progress: 100,
-                status: "completed"
-              });
-              
-              console.log(`Download completed for task ${taskId}`);
+          }
+        }
+      });
+      
+      // Download completed successfully
+      const fileSize = (await fsPromises.stat(outputFilePath)).size;
+      
+      // Update task as completed
+      await storage.updateDownloadTask(taskId, {
+        status: "completed",
+        progress: 100,
+        filePath: outputFilePath,
+        fileSize,
+        completedAt: new Date()
+      });
+      
+      // Find or create video entry in database
+      const existingVideo = await storage.getVideoByYouTubeId(videoId);
+      
+      if (existingVideo) {
+        // Update existing video
+        await storage.updateVideo(existingVideo.id, {
+          isDownloaded: true,
+          filePath: outputFilePath,
+          fileSize
+        });
+        
+        // Add to collection if specified
+        if (collectionId) {
+          try {
+            await storage.addVideoToCollection(existingVideo.id, collectionId);
+            console.log(`Added existing video ${existingVideo.id} to collection ${collectionId}`);
+          } catch (error) {
+            if (error instanceof Error) {
+              console.error("Error adding existing video to collection:", error.message);
+            } else {
+              console.error("Error adding existing video to collection:", error);
             }
           }
         }
-      }, 500); // Update every 500ms for smooth progress
+      } else {
+        // Create new video entry
+        const newVideo = {
+          videoId,
+          title: videoInfo.title,
+          description: videoInfo.description,
+          channelTitle: videoInfo.channel,
+          thumbnailUrl: videoInfo.thumbnail,
+          publishedAt: videoInfo.upload_date,
+          duration: videoInfo.duration,
+          viewCount: videoInfo.view_count.toString(),
+          isDownloaded: true,
+          isWatched: false,
+          fileSize,
+          filePath: outputFilePath
+        };
+        
+        try {
+          // Create the video
+          const createdVideo = await storage.createVideo(newVideo as any);
+          console.log(`Created video with ID: ${createdVideo.id}`);
+          
+          // Add to collection if specified
+          if (collectionId) {
+            try {
+              await storage.addVideoToCollection(createdVideo.id, collectionId);
+              console.log(`Added new video ${createdVideo.id} to collection ${collectionId}`);
+            } catch (error) {
+              if (error instanceof Error) {
+                console.error("Error adding to collection:", error.message);
+              } else {
+                console.error("Error adding to collection:", error);
+              }
+            }
+          }
+        } catch (error) {
+          if (error instanceof Error) {
+            console.error("Error creating video entry:", error.message);
+          } else {
+            console.error("Error creating video entry:", error);
+          }
+        }
+      }
+      
+      // Final progress broadcast
+      broadcastDownloadProgress({
+        taskId,
+        videoId,
+        progress: 100,
+        status: "completed"
+      });
+      
+      console.log(`Download completed for task ${taskId}`);
     } catch (error) {
       console.error(`Error downloading video ${videoId}:`, error);
       

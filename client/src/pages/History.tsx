@@ -21,14 +21,18 @@ import {
   XCircle, 
   Clock, 
   Download, 
-  Calendar 
+  Calendar,
+  Trash2
 } from "lucide-react";
 import useDownloads from "@/hooks/use-downloads";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function History() {
-  const { downloadHistory, isLoadingHistory } = useDownloads();
+  const { downloadHistory, isLoadingHistory, clearHistory } = useDownloads();
   const [filter, setFilter] = useState("all");
+  const { toast } = useToast();
 
   // Apply filters
   const filteredHistory = downloadHistory.filter(task => {
@@ -43,6 +47,10 @@ export default function History() {
     const dateB = b.completedAt || b.createdAt;
     return new Date(dateB).getTime() - new Date(dateA).getTime();
   });
+
+  const handleClearHistory = () => {
+    clearHistory.mutate();
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -73,18 +81,29 @@ export default function History() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Histórico de Downloads</h1>
-        <div className="flex items-center">
-          <span className="text-sm text-muted-foreground mr-2">Filtrar:</span>
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="completed">Concluídos</SelectItem>
-              <SelectItem value="failed">Falhas</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleClearHistory}
+            disabled={sortedHistory.length === 0}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Limpar Histórico
+          </Button>
+          <div className="flex items-center">
+            <span className="text-sm text-muted-foreground mr-2">Filtrar:</span>
+            <Select value={filter} onValueChange={setFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="completed">Concluídos</SelectItem>
+                <SelectItem value="failed">Falhas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
       

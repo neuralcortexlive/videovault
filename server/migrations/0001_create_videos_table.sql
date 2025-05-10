@@ -1,0 +1,21 @@
+CREATE TABLE videos (
+  id SERIAL PRIMARY KEY,
+  video_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  channel_title TEXT,
+  thumbnail_url TEXT,
+  published_at TEXT,
+  duration TEXT,
+  view_count TEXT,
+  is_downloaded BOOLEAN NOT NULL DEFAULT FALSE,
+  is_watched BOOLEAN NOT NULL DEFAULT FALSE,
+  file_size INTEGER,
+  file_path TEXT,
+  format TEXT,
+  quality TEXT,
+  metadata JSONB,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  downloaded_at TIMESTAMP
+); 

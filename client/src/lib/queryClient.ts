@@ -19,7 +19,11 @@ export async function apiRequest(
     credentials: "include",
   });
 
-  await throwIfResNotOk(res);
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
+  }
+
   return res;
 }
 

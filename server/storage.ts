@@ -37,6 +37,7 @@ export interface IStorage {
   updateDownloadTask(id: number, task: Partial<DownloadTask>): Promise<DownloadTask | undefined>;
   updateDownloadProgress(id: number, progress: Partial<DownloadProgress>): Promise<DownloadTask | undefined>;
   deleteDownloadTask(id: number): Promise<boolean>;
+  clearDownloadHistory(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -211,10 +212,9 @@ export class MemStorage implements IStorage {
       .filter(task => task.status === "completed" || task.status === "failed")
       .sort((a, b) => {
         // Sort by completion date (newest first)
-        if (a.completedAt && b.completedAt) {
-          return new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime();
-        }
-        return 0;
+        const dateA = a.completedAt || a.createdAt;
+        const dateB = b.completedAt || b.createdAt;
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
       });
   }
 
@@ -276,6 +276,15 @@ export class MemStorage implements IStorage {
 
   async deleteDownloadTask(id: number): Promise<boolean> {
     return this.downloadTasks.delete(id);
+  }
+
+  async clearDownloadHistory(): Promise<void> {
+    // Remove all completed and failed tasks
+    for (const [id, task] of this.downloadTasks.entries()) {
+      if (task.status === "completed" || task.status === "failed") {
+        this.downloadTasks.delete(id);
+      }
+    }
   }
 }
 
@@ -527,6 +536,18 @@ export class DatabaseStorage implements IStorage {
       .where(eq(downloadTasks.id, id))
       .returning({ id: downloadTasks.id });
     return !!deleted;
+  }
+
+  async clearDownloadHistory(): Promise<void> {
+    // Remove all completed and failed tasks
+    await db
+      .delete(downloadTasks)
+      .where(
+        or(
+          eq(downloadTasks.status, 'completed'),
+          eq(downloadTasks.status, 'failed')
+        )
+      );
   }
 }
 

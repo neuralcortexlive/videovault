@@ -75,6 +75,34 @@ export default function useDownloads() {
     queryKey: ['/api/downloads/history'],
   });
   
+  // Clear history mutation
+  const clearHistory = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('DELETE', '/api/downloads/history');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to clear history');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Histórico Limpo",
+        description: "O histórico de downloads foi limpo com sucesso."
+      });
+      
+      // Force refresh of history
+      queryClient.invalidateQueries({ queryKey: ['/api/downloads/history'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível limpar o histórico de downloads.",
+        variant: "destructive"
+      });
+    }
+  });
+  
   // Start download mutation
   const startDownload = useMutation({
     mutationFn: async (options: DownloadOptions) => {
@@ -132,6 +160,7 @@ export default function useDownloads() {
     isErrorHistory,
     refetchHistory,
     startDownload,
-    cancelDownload
+    cancelDownload,
+    clearHistory
   };
 }
