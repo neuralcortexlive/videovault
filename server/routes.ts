@@ -725,6 +725,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reorder collections
+  app.post("/api/collections/reorder", async (req, res) => {
+    try {
+      const { collections } = req.body;
+      
+      if (!Array.isArray(collections)) {
+        return res.status(400).json({ message: "Dados inválidos" });
+      }
+
+      // Atualizar a ordem de cada coleção
+      for (let i = 0; i < collections.length; i++) {
+        const collection = collections[i];
+        await storage.updateCollection(collection.id, { order: i });
+      }
+
+      return res.json({ message: "Coleções reordenadas com sucesso" });
+    } catch (error) {
+      console.error("Reorder collections error:", error);
+      return res.status(500).json({ message: "Falha ao reordenar coleções" });
+    }
+  });
+
   // Helper function to download videos using yt-dlp
   async function downloadWithYtDlp(taskId: number, videoId: string, quality: string = "1080") {
     console.log(`Starting download for task ${taskId}, video ID: ${videoId}, quality: ${quality}`);
