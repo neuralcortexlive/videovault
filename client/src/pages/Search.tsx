@@ -132,7 +132,7 @@ export default function Search() {
           <Button 
             type="submit"
             disabled={isLoading || !searchQuery.trim() || isButtonDisabled} 
-            className="bg-primary hover:bg-primary/90 text-white"
+            className="bg-primary hover:bg-primary/90 text-black font-medium"
           >
             {isLoading ? "Buscando..." : (isButtonDisabled ? "Processando..." : "Buscar")}
           </Button>
