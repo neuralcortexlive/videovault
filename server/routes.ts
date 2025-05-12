@@ -859,6 +859,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedAt: new Date()
       });
       
+      // Broadcast final status
+      broadcastDownloadProgress({
+        taskId,
+        videoId,
+        progress: 100,
+        status: "completed",
+        fileSize,
+        filePath: outputFilePath
+      });
+      
       // Find or create video entry in database
       const existingVideo = await storage.getVideoByYouTubeId(videoId);
       
