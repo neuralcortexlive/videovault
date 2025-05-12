@@ -57,7 +57,7 @@ export default function CollectionCard({
 
   const handleDelete = async () => {
     try {
-      await apiRequest('DELETE', `/api/collections/${collection.id}`);
+      await apiRequest('DELETE', `/api/collections/${generateSlug(collection.name)}`);
       
       toast({
         title: "Coleção Excluída",
