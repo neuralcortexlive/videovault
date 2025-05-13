@@ -70,6 +70,7 @@ export interface IStorage {
   getBatchDownloadItems(batchId: number): Promise<BatchDownloadItem[]>;
   deleteBatchDownloadItem(id: number): Promise<boolean>;
   updateBatchDownloadProgress(batchId: number): Promise<void>; // Update batch progress based on items status
+  deleteDownloadedVideos(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -89,10 +90,10 @@ export class DatabaseStorage implements IStorage {
     return newVideo;
   }
 
-  async updateVideo(id: number, videoUpdate: Partial<Video>): Promise<Video | undefined> {
+  async updateVideo(id: number, video: Partial<Video>): Promise<Video | undefined> {
     const [updatedVideo] = await db
       .update(videos)
-      .set(videoUpdate)
+      .set(video)
       .where(eq(videos.id, id))
       .returning();
     return updatedVideo;
@@ -123,10 +124,10 @@ export class DatabaseStorage implements IStorage {
     return newDownload;
   }
 
-  async updateDownload(id: number, downloadUpdate: Partial<Download>): Promise<Download | undefined> {
+  async updateDownload(id: number, download: Partial<Download>): Promise<Download | undefined> {
     const [updatedDownload] = await db
       .update(downloads)
-      .set(downloadUpdate)
+      .set(download)
       .where(eq(downloads.id, id))
       .returning();
     return updatedDownload;
@@ -151,7 +152,7 @@ export class DatabaseStorage implements IStorage {
   
   async deleteAllDownloads(): Promise<void> {
     // Função para implementar o botão "Clear" no histórico de downloads
-    await db.delete(downloads);
+    await db.delete(downloads).where(sql`1=1`);
   }
   
   // Collection operations
@@ -171,10 +172,10 @@ export class DatabaseStorage implements IStorage {
     return newCollection;
   }
 
-  async updateCollection(id: number, collectionUpdate: Partial<Collection>): Promise<Collection | undefined> {
+  async updateCollection(id: number, collection: Partial<Collection>): Promise<Collection | undefined> {
     const [updatedCollection] = await db
       .update(collections)
-      .set(collectionUpdate)
+      .set(collection)
       .where(eq(collections.id, id))
       .returning();
     return updatedCollection;
@@ -294,9 +295,9 @@ export class DatabaseStorage implements IStorage {
     return newPreset;
   }
 
-  async updateQualityPreset(id: number, presetUpdate: Partial<QualityPreset>): Promise<QualityPreset | undefined> {
+  async updateQualityPreset(id: number, preset: Partial<QualityPreset>): Promise<QualityPreset | undefined> {
     // If this preset is being set as default, clear default flag from other presets
-    if (presetUpdate.isDefault) {
+    if (preset.isDefault) {
       await db
         .update(qualityPresets)
         .set({ isDefault: false })
@@ -309,7 +310,7 @@ export class DatabaseStorage implements IStorage {
     const [updatedPreset] = await db
       .update(qualityPresets)
       .set({ 
-        ...presetUpdate,
+        ...preset,
         updatedAt: new Date() 
       })
       .where(eq(qualityPresets.id, id))
@@ -408,11 +409,11 @@ export class DatabaseStorage implements IStorage {
     return newBatch;
   }
 
-  async updateBatchDownload(id: number, batchUpdate: Partial<BatchDownload>): Promise<BatchDownload | undefined> {
+  async updateBatchDownload(id: number, batch: Partial<BatchDownload>): Promise<BatchDownload | undefined> {
     const [updatedBatch] = await db
       .update(batchDownloads)
       .set({ 
-        ...batchUpdate,
+        ...batch,
         updatedAt: new Date() 
       })
       .where(eq(batchDownloads.id, id))
@@ -482,18 +483,18 @@ export class DatabaseStorage implements IStorage {
     return newItem;
   }
 
-  async updateBatchDownloadItem(id: number, itemUpdate: Partial<BatchDownloadItem>): Promise<BatchDownloadItem | undefined> {
+  async updateBatchDownloadItem(id: number, item: Partial<BatchDownloadItem>): Promise<BatchDownloadItem | undefined> {
     const [updatedItem] = await db
       .update(batchDownloadItems)
       .set({ 
-        ...itemUpdate,
+        ...item,
         updatedAt: new Date() 
       })
       .where(eq(batchDownloadItems.id, id))
       .returning();
     
     // If status changed to completed or failed, update batch progress
-    if (itemUpdate.status === 'completed' || itemUpdate.status === 'failed') {
+    if (item.status === 'completed' || item.status === 'failed') {
       await this.updateBatchDownloadProgress(updatedItem.batchId);
     }
     
@@ -583,6 +584,10 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date()
       })
       .where(eq(batchDownloads.id, batchId));
+  }
+
+  async deleteDownloadedVideos(): Promise<void> {
+    await db.delete(videos).where(eq(videos.downloaded, true));
   }
 }
 
@@ -1131,6 +1136,14 @@ export class MemStorage implements IStorage {
       completedAt,
       updatedAt: new Date()
     });
+  }
+
+  async deleteDownloadedVideos(): Promise<void> {
+    for (const [id, video] of this.videos.entries()) {
+      if (video.downloaded) {
+        this.videos.delete(id);
+      }
+    }
   }
 }
 

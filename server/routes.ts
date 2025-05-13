@@ -333,7 +333,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           downloader.abort();
           activeDownloads.delete(download.id);
         }
-        await storage.updateDownload(download.id, { status: "cancelled" });
       }
       
       // Então exclui todos os downloads
@@ -520,40 +519,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Video streaming route
-  app.get("/api/stream/:videoId", (req: Request, res: Response) => {
-    const { videoId } = req.params;
-    const videoPath = path.join(downloadsDir, `${videoId}.mp4`);
-    
-    if (!fs.existsSync(videoPath)) {
-      return res.status(404).json({ error: "Video file not found" });
-    }
-    
-    const stat = fs.statSync(videoPath);
-    const fileSize = stat.size;
-    const range = req.headers.range;
-    
-    if (range) {
-      const parts = range.replace(/bytes=/, "").split("-");
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-      const chunksize = (end - start) + 1;
-      const file = fs.createReadStream(videoPath, { start, end });
+  app.get("/api/stream/:videoId", async (req: Request, res: Response) => {
+    try {
+      const { videoId } = req.params;
       
-      res.writeHead(206, {
-        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': chunksize,
-        'Content-Type': 'video/mp4',
-      });
+      // Buscar o vídeo no banco de dados para obter o caminho do arquivo
+      const video = await storage.getVideoByVideoId(videoId);
+      if (!video || !video.filepath) {
+        return res.status(404).json({ error: "Video file not found" });
+      }
       
-      file.pipe(res);
-    } else {
-      res.writeHead(200, {
-        'Content-Length': fileSize,
-        'Content-Type': 'video/mp4',
-      });
+      const videoPath = video.filepath;
       
-      fs.createReadStream(videoPath).pipe(res);
+      if (!fs.existsSync(videoPath)) {
+        return res.status(404).json({ error: "Video file not found" });
+      }
+      
+      const stat = fs.statSync(videoPath);
+      const fileSize = stat.size;
+      const range = req.headers.range;
+      
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(videoPath, { start, end });
+        
+        res.writeHead(206, {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunksize,
+          'Content-Type': 'video/mp4',
+        });
+        
+        file.pipe(res);
+      } else {
+        res.writeHead(200, {
+          'Content-Length': fileSize,
+          'Content-Type': 'video/mp4',
+        });
+        
+        fs.createReadStream(videoPath).pipe(res);
+      }
+    } catch (error: any) {
+      console.error("Error streaming video:", error);
+      res.status(500).json({ error: "Failed to stream video", details: error.message });
     }
   });
   
@@ -899,6 +910,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error starting batch download:", error);
       res.status(500).json({ error: "Failed to start batch download", details: error.message });
+    }
+  });
+
+  // Rota para limpar apenas vídeos baixados do histórico
+  app.delete("/api/library/clear-downloaded", async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDownloadedVideos();
+      res.json({ success: true, message: "Histórico de vídeos baixados limpo com sucesso." });
+    } catch (error: any) {
+      console.error("Erro ao limpar histórico de vídeos baixados:", error);
+      res.status(500).json({ error: "Falha ao limpar histórico de vídeos baixados", details: error.message });
     }
   });
 
