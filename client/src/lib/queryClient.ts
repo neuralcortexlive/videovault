@@ -19,11 +19,7 @@ export async function apiRequest(
     credentials: "include",
   });
 
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
-  }
-
+  await throwIfResNotOk(res);
   return res;
 }
 
@@ -33,7 +29,20 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey[0] as string, {
+    console.log("Fetching with query key:", queryKey);
+    let url = queryKey[0] as string;
+    
+    // Handle query parameters if they exist
+    if (queryKey.length > 1 && typeof queryKey[1] === 'object') {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(queryKey[1])) {
+        params.append(key, String(value));
+      }
+      url += `?${params.toString()}`;
+    }
+    
+    console.log("Full URL being fetched:", url);
+    const res = await fetch(url, {
       credentials: "include",
     });
 
@@ -51,7 +60,8 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: 0,
+      cacheTime: 1000,
       retry: false,
     },
     mutations: {

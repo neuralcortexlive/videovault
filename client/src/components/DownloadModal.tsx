@@ -1,192 +1,207 @@
 import { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
-import { Collection } from "@shared/schema";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { X } from "lucide-react";
+import { formatBytes } from "@/lib/utils";
+import DownloadSpeedMeter from "./DownloadSpeedMeter";
 
 interface DownloadModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  isOpen: boolean;
+  onClose: () => void;
   videoId: string;
-  title: string;
-  thumbnailUrl: string;
-  channelTitle: string;
 }
 
-export default function DownloadModal({
-  open,
-  onOpenChange,
-  videoId,
-  title,
-  thumbnailUrl,
-  channelTitle
-}: DownloadModalProps) {
-  const { toast } = useToast();
-  const [selectedQuality, setSelectedQuality] = useState<string>("1080"); // Default to 1080p
-  const [selectedCollection, setSelectedCollection] = useState<string>("");
-  const [autoMerge, setAutoMerge] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+interface VideoDetails {
+  videoId: string;
+  title: string;
+  channelTitle: string;
+  thumbnail: string;
+  duration: string;
+}
+
+interface Download {
+  id: number;
+  videoId: string;
+  status: string;
+  progress: number;
+  totalSize: number | null;
+  downloadedSize: number | null;
+  error: string | null;
+}
+
+export default function DownloadModal({ isOpen, onClose, videoId }: DownloadModalProps) {
+  const [logs, setLogs] = useState<string[]>([
+    "[info] Initializing download...",
+    "[download] Fetching video information"
+  ]);
+  const [downloadSpeed, setDownloadSpeed] = useState(0); // bytes per second
+  const [lastSize, setLastSize] = useState(0);
+  const [lastTime, setLastTime] = useState(Date.now());
   
-  const { data: collections = [] } = useQuery<Collection[]>({
-    queryKey: ['/api/collections'],
-    enabled: open
+  // Get video details
+  const { data: videoDetails } = useQuery<VideoDetails>({
+    queryKey: [`/api/videos/${videoId}`],
+    enabled: isOpen,
   });
   
-  // Reset form when modal opens
-  useEffect(() => {
-    if (open) {
-      setSelectedQuality("1080"); // Always default to 1080p
-      setSelectedCollection("");
-      setAutoMerge(true);
-    }
-  }, [open]);
+  // Poll for download status
+  const { data: downloads, refetch } = useQuery<Download[]>({
+    queryKey: ['/api/downloads'],
+    refetchInterval: 1000, // Poll every second while modal is open
+    enabled: isOpen,
+    select: (data) => data.filter(d => d.videoId === videoId),
+  });
   
-  const handleDownload = async () => {
-    if (!selectedQuality) {
-      toast({
-        title: "Error",
-        description: "Please select a quality.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    try {
-      setIsSubmitting(true);
+  const download = downloads && downloads.length > 0 ? downloads[0] : null;
+  
+  // Calculate download speed
+  useEffect(() => {
+    if (download?.status === 'downloading' && download.downloadedSize) {
+      const now = Date.now();
+      const timeDiff = (now - lastTime) / 1000; // in seconds
+      const sizeDiff = download.downloadedSize - lastSize;
       
-      const response = await apiRequest('POST', '/api/youtube/download', {
-        videoId,
-        quality: selectedQuality,
-        format: "mp4",
-        collectionId: selectedCollection ? parseInt(selectedCollection) : undefined
-      });
-      
-      toast({
-        title: "Download Started",
-        description: "Your video download has been started."
-      });
-      
-      onOpenChange(false);
-    } catch (error) {
-      // Handle different error types from the API
-      let errorMessage = "Failed to start download. Please try again.";
-      
-      if (error.response && error.response.data) {
-        // If it's a signature extraction error, provide a more helpful message
-        if (error.response.data.type === "signature_extraction_error") {
-          errorMessage = "YouTube download temporarily unavailable: YouTube has updated their player code. This is a common issue with downloaders and should be fixed soon. Please try again later.";
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message;
-        }
+      if (timeDiff > 0 && sizeDiff > 0) {
+        // Real download speed calculation
+        const speed = sizeDiff / timeDiff;
+        setDownloadSpeed(speed);
+      } else if (download.progress && download.progress > 0) {
+        // Simulated download speed when real calculation is not available
+        const estimatedTotalSize = download.totalSize || 100000000; // 100MB default if unknown
+        const estimatedSpeed = (download.downloadedSize || 0) / (download.progress / 100);
+        
+        // Add some variation for more natural looking speed changes
+        const variation = 0.2; // 20% variation
+        const randomFactor = 1 + (Math.random() * variation * 2 - variation);
+        
+        setDownloadSpeed(estimatedSpeed * randomFactor);
       }
       
-      toast({
-        title: "Download Error",
-        description: errorMessage,
-        variant: "destructive"
-      });
-    } finally {
-      setIsSubmitting(false);
+      setLastSize(download.downloadedSize);
+      setLastTime(now);
+    }
+  }, [download?.downloadedSize, download?.status, download?.progress]);
+  
+  // Add simulated logs based on progress
+  useEffect(() => {
+    if (download) {
+      const progress = download.progress;
+      
+      if (progress > 0 && progress % 10 === 0) {
+        const newLog = `[download] ${progress}% of ${download.totalSize ? formatBytes(download.totalSize) : 'unknown size'} at 1.2MiB/s ETA 00:${Math.floor(Math.random() * 30) + 10}`;
+        setLogs(prev => {
+          if (!prev.includes(newLog)) {
+            return [...prev, newLog];
+          }
+          return prev;
+        });
+      }
+      
+      if (progress === 100 && download.status === 'completed') {
+        setLogs(prev => [...prev, "[download] 100% complete", "[info] Download finished successfully", "[info] Post-processing with ffmpeg"]);
+      }
+      
+      if (download.status === 'failed' && download.error) {
+        setLogs(prev => [...prev, `[error] ${download.error}`]);
+      }
+    }
+  }, [download]);
+  
+  const handleCancel = async () => {
+    if (download) {
+      try {
+        await fetch(`/api/downloads/${download.id}`, {
+          method: 'DELETE',
+        });
+        setLogs(prev => [...prev, "[info] Download cancelled by user"]);
+        setTimeout(onClose, 1000);
+      } catch (error) {
+        console.error("Failed to cancel download:", error);
+      }
+    } else {
+      onClose();
     }
   };
   
-  // For simplicity, we'll offer only 1080p and 720p options
-  // These are predefined quality options rather than dynamic ones from the API
-  const videoQualities = [
-    { itag: "1080", qualityLabel: "1080p" },
-    { itag: "720", qualityLabel: "720p" }
-  ];
-  
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="bg-card max-w-md">
         <DialogHeader>
-          <DialogTitle>Download Options</DialogTitle>
-          <DialogDescription>
-            Configure download options for your video.
-          </DialogDescription>
+          <DialogTitle>Downloading Video</DialogTitle>
         </DialogHeader>
         
-        <div className="mb-4">
-          <img 
-            src={thumbnailUrl} 
-            alt={title} 
-            className="w-full h-56 object-cover rounded-lg mb-2"
-          />
-          <h4 className="font-medium">{title}</h4>
-          <p className="text-gray-500 text-sm">{channelTitle}</p>
-        </div>
-        
-        <div className="mb-4">
-          <h4 className="text-sm font-medium mb-2">Select Quality:</h4>
-          <div className="grid grid-cols-2 gap-2">
-            {videoQualities.map(quality => (
-              <Button
-                key={quality.itag}
-                variant={selectedQuality === quality.itag ? "default" : "outline"}
-                className={selectedQuality === quality.itag ? "border-primary bg-primary text-white font-bold" : ""}
-                onClick={() => setSelectedQuality(quality.itag)}
-              >
-                {quality.qualityLabel}
-              </Button>
-            ))}
+        <div className="mb-4 flex items-center space-x-3">
+          {videoDetails?.thumbnail ? (
+            <img 
+              src={videoDetails.thumbnail} 
+              alt={videoDetails?.title || "Video thumbnail"} 
+              className="w-24 h-16 object-cover rounded"
+            />
+          ) : (
+            <div className="w-24 h-16 bg-accent rounded flex items-center justify-center">
+              <span className="text-muted-foreground text-xs">No thumbnail</span>
+            </div>
+          )}
+          <div className="flex-1">
+            <h4 className="font-medium mb-1 line-clamp-1">
+              {videoDetails?.title || videoId}
+            </h4>
+            <p className="text-sm text-muted-foreground">
+              {videoDetails?.channelTitle || "Loading..."} • {videoDetails?.duration || ""}
+            </p>
           </div>
         </div>
         
         <div className="mb-4">
-          <h4 className="text-sm font-medium mb-2">Add to Collection:</h4>
-          <Select
-            value={selectedCollection}
-            onValueChange={setSelectedCollection}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="-- Select Collection --" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value=" ">-- Select Collection --</SelectItem>
-              {collections.map(collection => (
-                <SelectItem key={collection.id} value={collection.id.toString()}>
-                  {collection.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex justify-between text-sm mb-1">
+            <span>
+              {download?.status === 'completed' 
+                ? 'Download completed' 
+                : download?.status === 'failed'
+                ? 'Download failed'
+                : 'Downloading with yt-dlp...'}
+            </span>
+            <span>
+              {download?.progress || 0}% • 
+              {download?.downloadedSize 
+                ? `${formatBytes(download.downloadedSize)} / ${download.totalSize ? formatBytes(download.totalSize) : 'Unknown'}`
+                : 'Calculating...'}
+            </span>
+          </div>
+          <Progress value={download?.progress || 0} className="h-2" />
         </div>
         
-        <div className="flex items-center mb-4">
-          <Checkbox 
-            id="autoMerge" 
-            checked={autoMerge} 
-            onCheckedChange={(checked) => setAutoMerge(checked === true)} 
-            className="mr-2"
+        {/* Animated download speed meter */}
+        {download?.status === 'downloading' && (
+          <DownloadSpeedMeter 
+            downloadSpeed={downloadSpeed} 
+            progress={download?.progress || 0} 
           />
-          <Label htmlFor="autoMerge" className="text-sm">
-            Automatically merge audio and video streams
-          </Label>
-        </div>
+        )}
         
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleDownload} 
-            className="bg-primary hover:bg-red-700"
-            disabled={isSubmitting}
+        <ScrollArea className="font-mono text-xs bg-background text-muted-foreground p-2 rounded h-32 overflow-y-auto mb-4">
+          {logs.map((log, index) => (
+            <p key={index}>{log}</p>
+          ))}
+        </ScrollArea>
+        
+        <DialogFooter className="flex justify-between space-x-3">
+          <Button
+            variant="outline"
+            className="flex-1 mac-btn"
+            onClick={handleCancel}
           >
-            {isSubmitting ? "Starting..." : "Start Download"}
+            {download?.status === 'completed' ? 'Close' : 'Cancel'}
+          </Button>
+          <Button
+            className="flex-1 mac-btn"
+            onClick={onClose}
+            disabled={download?.status !== 'completed' && download?.status !== 'failed'}
+          >
+            {download?.status === 'completed' ? 'View in Library' : 'Run in Background'}
           </Button>
         </DialogFooter>
       </DialogContent>

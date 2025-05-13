@@ -1,187 +1,87 @@
 import { useState } from "react";
+import { Play, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
-import { Download, Plus, Play, Pause } from "lucide-react";
-import { Video, YouTubeSearchResult } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import DownloadModal from "./DownloadModal";
-import CollectionModal from "./CollectionModal";
-import VideoPlayer from "./VideoPlayer";
+import { parseDuration, formatViewCount } from "@/lib/utils";
+import VideoDetailModal from "@/components/VideoDetailModal";
 
-interface VideoCardProps {
-  video: Video | YouTubeSearchResult;
-  isDownloaded?: boolean;
-  isDownloading?: boolean;
-  onPlay?: () => void;
-  showCollectionButton?: boolean;
+export interface VideoCardProps {
+  video: {
+    videoId: string;
+    title: string;
+    channelTitle: string;
+    thumbnail: string;
+    publishedAt: string;
+    viewCount: number;
+    duration: string;
+  };
+  onDownload: (videoId: string) => void;
 }
 
-export default function VideoCard({ 
-  video, 
-  isDownloaded = false, 
-  isDownloading = false,
-  onPlay,
-  showCollectionButton = true
-}: VideoCardProps) {
-  const { toast } = useToast();
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [showCollectionModal, setShowCollectionModal] = useState(false);
-  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+export default function VideoCard({ video, onDownload }: VideoCardProps) {
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   
-  const isYouTubeResult = 'snippet' in video;
+  const formattedDuration = parseDuration(video.duration);
+  const formattedViewCount = formatViewCount(video.viewCount);
+  const publishedTimeAgo = formatDistanceToNow(new Date(video.publishedAt), { addSuffix: true });
   
-  const videoId = isYouTubeResult ? video.id.videoId : video.videoId;
-  const title = isYouTubeResult ? video.snippet.title : video.title;
-  const channelTitle = isYouTubeResult ? video.snippet.channelTitle : video.channelTitle || '';
-  const thumbnailUrl = isYouTubeResult 
-    ? video.snippet.thumbnails.high.url 
-    : video.thumbnailUrl || '';
-  const publishedAt = isYouTubeResult ? video.snippet.publishedAt : video.publishedAt;
-  
-  const formattedDate = publishedAt ? formatDistanceToNow(new Date(publishedAt), { addSuffix: true }) : '';
-
-  const handleDownload = () => {
-    setShowDownloadModal(true);
-  };
-
-  const handleAddToCollection = () => {
-    setShowCollectionModal(true);
-  };
-
-  const handleCancelDownload = async () => {
-    try {
-      await apiRequest('DELETE', `/api/youtube/download/${video.id}`);
-      toast({
-        title: "Download Canceled",
-        description: "The download has been canceled successfully."
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to cancel download. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const durationMinutes = Math.floor(Math.random() * 20) + 5;
-  const durationSeconds = Math.floor(Math.random() * 60);
-  const durationFormatted = `${durationMinutes}:${durationSeconds.toString().padStart(2, '0')}`;
-
   return (
     <>
-      <div className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 overflow-hidden hover:border-border/80 transition-all duration-200">
+      <div className="bg-card rounded-lg overflow-hidden shadow-md video-card">
         <div className="relative">
           <img 
-            src={thumbnailUrl} 
-            alt={`${title} thumbnail`} 
-            className="w-full h-40 object-cover"
-          />
-          
-          <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded-md backdrop-blur-sm">
-            {durationFormatted}
-          </span>
-          
-          {isDownloaded && (
-            <div className="absolute top-2 left-2 bg-emerald-500/90 text-white text-xs px-2 py-0.5 rounded-md backdrop-blur-sm">
-              DOWNLOADED
-            </div>
-          )}
-          
-          {isDownloading && (
-            <div className="absolute top-2 left-2 bg-blue-500/90 text-white text-xs px-2 py-0.5 rounded-md backdrop-blur-sm">
-              DOWNLOADING
-            </div>
-          )}
-          
-          <button 
-            className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
-            onClick={() => {
-              if (onPlay) {
-                onPlay();
-              } else {
-                setShowVideoPlayer(true);
-              }
+            src={video.thumbnail} 
+            alt={video.title} 
+            className="w-full aspect-video object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.onerror = null; // Prevent infinite loop
+              target.src = `https://via.placeholder.com/480x360/1A1A1A/8E8E93?text=No+Thumbnail`;
             }}
-          >
-            <Play className="text-white h-12 w-12" />
-          </button>
+          />
+          {formattedDuration && (
+            <div className="absolute bottom-2 right-2 bg-black bg-opacity-80 px-1 rounded text-xs">
+              {formattedDuration}
+            </div>
+          )}
         </div>
-        
-        <div className="p-4">
-          <h3 className="font-medium text-sm line-clamp-2 h-10 text-foreground/90">{title}</h3>
-          
+        <div className="p-3">
+          <h3 className="font-medium text-sm line-clamp-2">{video.title}</h3>
           <div className="flex justify-between items-center mt-2">
-            <div className="text-muted-foreground text-xs">
-              {channelTitle} {formattedDate ? `• ${formattedDate}` : ''}
-            </div>
-            
-            <div className="flex space-x-1">
-              {isDownloading ? (
-                <button 
-                  title="Cancel download" 
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
-                  onClick={handleCancelDownload}
-                >
-                  <Pause className="h-5 w-5" />
-                </button>
-              ) : isDownloaded ? (
-                <button 
-                  title="Reproduzir vídeo local" 
-                  className="text-emerald-400 hover:text-emerald-300 transition-colors"
-                  onClick={() => {
-                    if (onPlay) {
-                      onPlay();
-                    }
-                  }}
-                >
-                  <Play className="h-5 w-5" />
-                </button>
-              ) : (
-                <button 
-                  title="Download" 
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                  onClick={handleDownload}
-                >
-                  <Download className="h-5 w-5" />
-                </button>
-              )}
-              
-              {showCollectionButton && (
-                <button 
-                  title="Add to collection" 
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                  onClick={handleAddToCollection}
-                >
-                  <Plus className="h-5 w-5" />
-                </button>
-              )}
-            </div>
+            <span className="text-xs text-muted-foreground">
+              {video.channelTitle} • {formattedViewCount}
+            </span>
+            <span className="text-xs text-muted-foreground">{publishedTimeAgo}</span>
           </div>
         </div>
+        <div className="p-2 border-t border-border flex justify-between">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="mac-btn flex items-center space-x-1 text-muted-foreground hover:text-foreground"
+            onClick={() => setIsDetailModalOpen(true)}
+          >
+            <Play className="h-3.5 w-3.5 mr-1" />
+            <span>Preview</span>
+          </Button>
+          <Button 
+            variant="link" 
+            size="sm" 
+            className="mac-btn flex items-center space-x-1 text-primary hover:text-primary/90"
+            onClick={() => onDownload(video.videoId)}
+          >
+            <Download className="h-3.5 w-3.5 mr-1" />
+            <span>Download</span>
+          </Button>
+        </div>
       </div>
-
-      <DownloadModal
-        open={showDownloadModal}
-        onOpenChange={setShowDownloadModal}
-        videoId={videoId}
-        title={title}
-        thumbnailUrl={thumbnailUrl}
-        channelTitle={channelTitle}
+      
+      <VideoDetailModal 
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        videoId={video.videoId}
+        onDownload={onDownload}
       />
-
-      <CollectionModal
-        open={showCollectionModal}
-        onOpenChange={setShowCollectionModal}
-        videoId={videoId}
-      />
-
-      {showVideoPlayer && (
-        <VideoPlayer
-          videoId={videoId}
-          onClose={() => setShowVideoPlayer(false)}
-        />
-      )}
     </>
   );
 }
