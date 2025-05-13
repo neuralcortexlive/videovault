@@ -333,15 +333,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           downloader.abort();
           activeDownloads.delete(download.id);
         }
+        await storage.updateDownload(download.id, { status: "cancelled" });
       }
       
-      // Então exclui todos os downloads
+      // Então exclui todos os downloads do banco de dados
       await storage.deleteAllDownloads();
       
-      res.json({ success: true, message: "All downloads cleared" });
+      // Limpa o mapa de downloads ativos
+      activeDownloads.clear();
+      
+      res.json({ success: true, message: "Histórico de downloads limpo com sucesso" });
     } catch (error: any) {
-      console.error("Error clearing downloads:", error);
-      res.status(500).json({ error: "Failed to clear downloads", details: error.message });
+      console.error("Erro ao limpar histórico de downloads:", error);
+      res.status(500).json({ 
+        error: "Falha ao limpar histórico de downloads", 
+        details: error.message 
+      });
     }
   });
 

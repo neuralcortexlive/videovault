@@ -151,8 +151,21 @@ export class DatabaseStorage implements IStorage {
   }
   
   async deleteAllDownloads(): Promise<void> {
-    // Função para implementar o botão "Clear" no histórico de downloads
-    await db.delete(downloads).where(sql`1=1`);
+    try {
+      // Primeiro atualiza o status de todos os downloads ativos para "cancelled"
+      await db
+        .update(downloads)
+        .set({ status: "cancelled" })
+        .where(eq(downloads.status, "downloading"));
+
+      // Então exclui todos os downloads
+      await db
+        .delete(downloads)
+        .where(sql`1=1`);
+    } catch (error) {
+      console.error("Erro ao excluir downloads:", error);
+      throw error;
+    }
   }
   
   // Collection operations
