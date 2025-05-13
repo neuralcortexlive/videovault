@@ -184,3 +184,23 @@ export type DownloadProgress = {
     transferredMb?: string;
   };
 };
+
+export type Video = {
+  id: number;
+  videoId: string;
+  title: string;
+  description: string | null;
+  channelTitle: string | null;
+  thumbnailUrl: string | null;
+  publishedAt: string | null;
+  duration: string | null;
+  viewCount: string | null;
+  isDownloaded: boolean;
+  isWatched: boolean;
+  format: string | null;
+  quality: string | null;
+  fileSize: number | null;
+  filePath: string | null;
+  downloadPath?: string | null;
+  metadata: unknown;
+};

@@ -40,11 +40,22 @@ export default function useCollections() {
     return { queryKey, queryFn };
   };
   
-  // Get videos in a collection - this is a query creator, not a direct hook
-  const getCollectionVideos = (collectionId: number) => {
-    const queryKey = [`/api/collections/${collectionId}/videos`];
+  // Get videos in a collection
+  const getCollectionVideos = async (collectionId: number): Promise<Video[]> => {
+    if (!collectionId) return [];
     
-    return { queryKey };
+    try {
+      const response = await fetch(`/api/collections/${collectionId}/videos`);
+      if (!response.ok) {
+        throw new Error("Falha ao buscar vídeos da coleção");
+      }
+      const data = await response.json();
+      // Garantir que retornamos um array
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error("Erro ao buscar vídeos da coleção:", error);
+      return [];
+    }
   };
   
   // Create collection mutation

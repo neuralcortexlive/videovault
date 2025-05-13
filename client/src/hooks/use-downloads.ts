@@ -38,8 +38,6 @@ export default function useDownloads() {
           if (data.data.status === "completed" || data.data.status === "failed") {
             queryClient.invalidateQueries({ queryKey: ['/api/downloads/active'] });
             queryClient.invalidateQueries({ queryKey: ['/api/downloads/history'] });
-            // Forçar atualização imediata do histórico
-            refetchHistory();
           }
         }
       } catch (error) {

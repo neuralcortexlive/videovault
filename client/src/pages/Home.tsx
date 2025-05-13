@@ -7,6 +7,7 @@ import ActiveDownload from "@/components/ActiveDownload";
 import CollectionCard from "@/components/CollectionCard";
 import VideoCard from "@/components/VideoCard";
 import CollectionModal from "@/components/CollectionModal";
+import VideoPlayerModal from "@/components/VideoPlayerModal";
 import useDownloads from "@/hooks/use-downloads";
 import useCollections from "@/hooks/use-collections";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +22,8 @@ type CollectionStat = {
 
 export default function Home() {
   const [showCollectionModal, setShowCollectionModal] = useState(false);
+  const [currentVideo, setCurrentVideo] = useState<Video | null>(null);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const { activeDownloads, cancelDownload } = useDownloads();
   const { collections, getCollectionVideos } = useCollections();
   
@@ -35,26 +38,38 @@ export default function Home() {
   // Update collection stats when collections change
   useEffect(() => {
     const updateCollectionStats = async () => {
-      const stats = await Promise.all(collections.map(async (collection) => {
-        // Get videos for this collection
-        const videos = await getCollectionVideos(collection.id);
-        const watchedCount = videos.filter(v => v.isWatched).length;
-        const watchedPercentage = videos.length > 0 
-          ? Math.round((watchedCount / videos.length) * 100) 
-          : 0;
+      try {
+        const statsPromises = collections.map(async (collection) => {
+          try {
+            const videos = await getCollectionVideos(collection.id);
+            const watchedCount = videos.filter(v => v.isWatched).length;
+            const totalVideos = videos.length;
+            
+            return {
+              collection,
+              videoCount: totalVideos,
+              watchedPercentage: totalVideos > 0 
+                ? Math.round((watchedCount / totalVideos) * 100) 
+                : 0,
+              firstVideoThumbnail: videos[0]?.thumbnailUrl
+            };
+          } catch (error) {
+            console.error(`Erro ao obter vídeos da coleção ${collection.id}:`, error);
+            return {
+              collection,
+              videoCount: 0,
+              watchedPercentage: 0,
+              firstVideoThumbnail: undefined
+            };
+          }
+        });
         
-        // Get the first video's thumbnail if available
-        const firstVideoThumbnail = videos[0]?.thumbnailUrl;
-        
-        return {
-          collection,
-          videoCount: videos.length,
-          watchedPercentage,
-          firstVideoThumbnail
-        };
-      }));
-      
-      setCollectionStats(stats);
+        const stats = await Promise.all(statsPromises);
+        setCollectionStats(stats);
+      } catch (error) {
+        console.error("Erro ao atualizar estatísticas das coleções:", error);
+        setCollectionStats([]);
+      }
     };
     
     updateCollectionStats();
@@ -190,6 +205,10 @@ export default function Home() {
                     key={video.id}
                     video={video}
                     isDownloaded={true}
+                    onPlay={() => {
+                      setCurrentVideo(video);
+                      setShowVideoPlayer(true);
+                    }}
                   />
                 ))
               )}
@@ -237,6 +256,12 @@ export default function Home() {
       <CollectionModal
         open={showCollectionModal}
         onOpenChange={setShowCollectionModal}
+      />
+
+      <VideoPlayerModal
+        video={currentVideo}
+        open={showVideoPlayer}
+        onOpenChange={setShowVideoPlayer}
       />
     </>
   );

@@ -136,7 +136,7 @@ export default function DownloadModal({
               <Button
                 key={quality.itag}
                 variant={selectedQuality === quality.itag ? "default" : "outline"}
-                className={selectedQuality === quality.itag ? "border-primary bg-primary text-black font-bold" : ""}
+                className={selectedQuality === quality.itag ? "border-primary bg-primary text-white font-bold" : ""}
                 onClick={() => setSelectedQuality(quality.itag)}
               >
                 {quality.qualityLabel}

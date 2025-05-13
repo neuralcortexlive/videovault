@@ -58,13 +58,27 @@ export default function Collections({ id }: CollectionsProps) {
   const isViewingCollection = !!id;
   
   // Get videos in the current collection
-  const { 
-    data: collectionVideos = [] as Video[], 
-    isLoading: isLoadingVideos 
-  } = useQuery<Video[]>({ 
-    ...getCollectionVideos(collectionId || 0),
-    enabled: !!collectionId
-  });
+  const [collectionVideos, setCollectionVideos] = useState<Video[]>([]);
+  const [isLoadingVideos, setIsLoadingVideos] = useState(false);
+  
+  // Fetch videos for the collection when it changes
+  useEffect(() => {
+    const fetchVideos = async () => {
+      if (collectionId) {
+        setIsLoadingVideos(true);
+        try {
+          const videos = await getCollectionVideos(collectionId);
+          setCollectionVideos(videos);
+        } catch (error) {
+          console.error("Error fetching collection videos:", error);
+        } finally {
+          setIsLoadingVideos(false);
+        }
+      }
+    };
+    
+    fetchVideos();
+  }, [collectionId, getCollectionVideos]);
   
   // Set up state for collection stats
   const [collectionStats, setCollectionStats] = useState<Array<{
@@ -96,7 +110,7 @@ export default function Collections({ id }: CollectionsProps) {
       try {
         await deleteCollection.mutateAsync(generateSlug(selectedCollection.name));
         setShowDeleteDialog(false);
-        setSelectedCollection(null);
+        navigate("/collections");
       } catch (error) {
         console.error("Error deleting collection:", error);
       }

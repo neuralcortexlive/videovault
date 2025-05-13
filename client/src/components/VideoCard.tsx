@@ -127,13 +127,11 @@ export default function VideoCard({
                 </button>
               ) : isDownloaded ? (
                 <button 
-                  title="Play downloaded version" 
+                  title="Reproduzir vídeo local" 
                   className="text-emerald-400 hover:text-emerald-300 transition-colors"
                   onClick={() => {
                     if (onPlay) {
                       onPlay();
-                    } else {
-                      setShowVideoPlayer(true);
                     }
                   }}
                 >
