@@ -29,6 +29,7 @@ export interface IStorage {
   listDownloads(limit: number, offset: number): Promise<Download[]>;
   listInProgressDownloads(): Promise<Download[]>;
   deleteAllDownloads(): Promise<void>; // Para implementar o botão "Clear"
+  deleteDownload(id: number): Promise<boolean>;
   
   // API Config operations
   getApiConfig(): Promise<ApiConfig | undefined>;
@@ -159,12 +160,20 @@ export class DatabaseStorage implements IStorage {
         .where(eq(downloads.status, "downloading"));
 
       // Então exclui todos os downloads
-      await db
-        .delete(downloads)
-        .where(sql`1=1`);
+      await db.delete(downloads);
     } catch (error) {
       console.error("Erro ao excluir downloads:", error);
       throw error;
+    }
+  }
+  
+  async deleteDownload(id: number): Promise<boolean> {
+    try {
+      const result = await db.delete(downloads).where(eq(downloads.id, id));
+      return result.rowCount > 0;
+    } catch (error) {
+      console.error("Erro ao deletar download:", error);
+      return false;
     }
   }
   
@@ -1156,6 +1165,16 @@ export class MemStorage implements IStorage {
       if (video.downloaded) {
         this.videos.delete(id);
       }
+    }
+  }
+
+  async deleteDownload(id: number): Promise<boolean> {
+    try {
+      if (!this.downloads.has(id)) return false;
+      return this.downloads.delete(id);
+    } catch (error) {
+      console.error("Erro ao deletar download:", error);
+      return false;
     }
   }
 }

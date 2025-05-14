@@ -295,29 +295,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/downloads/:id", async (req: Request, res: Response) => {
+  app.delete("/api/downloads/:id", async (req, res) => {
     try {
-      const downloadId = parseInt(req.params.id, 10);
-      const download = await storage.getDownload(downloadId);
-      
-      if (!download) {
-        return res.status(404).json({ error: "Download not found" });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID inválido" });
       }
 
-      // If download is in progress, abort it
-      if (download.status === "downloading" && activeDownloads.has(downloadId)) {
-        const downloader = activeDownloads.get(downloadId);
-        downloader.abort();
-        activeDownloads.delete(downloadId);
+      // Cancela o download se estiver ativo
+      const download = activeDownloads.get(id);
+      if (download) {
+        download.abort();
+        activeDownloads.delete(id);
       }
 
-      // Update the download status
-      await storage.updateDownload(downloadId, { status: "cancelled" });
-      
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error("Error cancelling download:", error);
-      res.status(500).json({ error: "Failed to cancel download", details: error.message });
+      // Remove do banco de dados
+      const success = await storage.deleteDownload(id);
+      if (!success) {
+        return res.status(404).json({ error: "Download não encontrado" });
+      }
+
+      res.json({ message: "Download removido com sucesso" });
+    } catch (error) {
+      console.error("Erro ao deletar download:", error);
+      res.status(500).json({ error: "Erro ao deletar download" });
     }
   });
   

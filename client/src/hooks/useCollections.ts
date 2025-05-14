@@ -177,18 +177,28 @@ export function useClearAllDownloads() {
   return useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/downloads/all", {
-        method: "DELETE"
+        method: "DELETE",
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
       if (!response.ok) {
-        throw new Error("Failed to clear downloads");
+        const error = await response.json();
+        throw new Error(error.error || "Falha ao limpar histórico de downloads");
       }
       
       return true;
     },
     onSuccess: () => {
+      // Invalida todas as queries relacionadas a downloads
       queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/downloads/active"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/library"] });
+    },
+    onError: (error: Error) => {
+      console.error("Erro ao limpar downloads:", error);
+      throw error;
     }
   });
 }
