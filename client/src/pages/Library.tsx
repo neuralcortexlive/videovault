@@ -45,6 +45,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import VideoPlayerModal from "@/components/VideoPlayerModal";
 
 interface Video {
   id: number;
@@ -125,6 +126,8 @@ export default function Library() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [collectionToEdit, setCollectionToEdit] = useState<Collection | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<number | null>(null);
+  const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
+  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   
   const { toast } = useToast();
   
@@ -243,7 +246,8 @@ export default function Library() {
   };
   
   const streamVideo = (videoId: string) => {
-    window.open(`/api/stream/${videoId}`, '_blank');
+    setSelectedVideoId(videoId);
+    setIsPlayerModalOpen(true);
   };
   
   // Loading state
@@ -408,7 +412,7 @@ export default function Library() {
             <>
               {filteredVideos && filteredVideos.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredVideos.map(video => (
+                  {filteredVideos.map((video: Video) => (
                     <Card key={video.id} className="bg-card overflow-hidden video-card">
                       <div className="relative">
                         {video.thumbnail ? (
@@ -527,11 +531,11 @@ export default function Library() {
                     {collectionVideos && collectionVideos.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {collectionVideos
-                          .filter(video => 
+                          .filter((video: Video) => 
                             video.title.toLowerCase().includes(searchFilter.toLowerCase()) ||
                             video.channelTitle.toLowerCase().includes(searchFilter.toLowerCase())
                           )
-                          .map(video => (
+                          .map((video: Video) => (
                             <Card key={video.id} className="bg-card overflow-hidden video-card">
                               <div className="relative">
                                 {video.thumbnail ? (
@@ -600,6 +604,15 @@ export default function Library() {
           </TabsContent>
         ))}
       </Tabs>
+      
+      <VideoPlayerModal
+        isOpen={isPlayerModalOpen}
+        onClose={() => {
+          setIsPlayerModalOpen(false);
+          setSelectedVideoId(null);
+        }}
+        videoId={selectedVideoId || ""}
+      />
     </div>
   );
 }
