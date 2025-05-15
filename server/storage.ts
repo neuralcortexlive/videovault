@@ -28,12 +28,14 @@ export interface IStorage {
   updateDownload(id: number, download: Partial<Download>): Promise<Download | undefined>;
   listDownloads(limit: number, offset: number): Promise<Download[]>;
   listInProgressDownloads(): Promise<Download[]>;
-  deleteAllDownloads(): Promise<void>; // Para implementar o botão "Clear"
+  deleteAllDownloads(): Promise<void>;
   deleteDownload(id: number): Promise<boolean>;
   
   // API Config operations
   getApiConfig(): Promise<ApiConfig | undefined>;
   saveApiConfig(config: InsertApiConfig): Promise<ApiConfig>;
+  getApiConfigs(): Promise<ApiConfig[]>;
+  deleteAllApiConfigs(): Promise<void>;
   
   // Collection operations
   getCollection(id: number): Promise<Collection | undefined>;
@@ -41,11 +43,14 @@ export interface IStorage {
   updateCollection(id: number, collection: Partial<Collection>): Promise<Collection | undefined>;
   deleteCollection(id: number): Promise<boolean>;
   listCollections(): Promise<Collection[]>;
+  deleteAllCollections(): Promise<void>;
   
   // Video-Collection operations
   addVideoToCollection(videoId: number, collectionId: number): Promise<VideoCollection>;
   removeVideoFromCollection(videoId: number, collectionId: number): Promise<boolean>;
   getVideosInCollection(collectionId: number): Promise<Video[]>;
+  getVideoCollections(): Promise<VideoCollection[]>;
+  deleteAllVideoCollections(): Promise<void>;
   
   // Quality Preset operations
   getQualityPreset(id: number): Promise<QualityPreset | undefined>;
@@ -55,6 +60,8 @@ export interface IStorage {
   deleteQualityPreset(id: number): Promise<boolean>;
   listQualityPresets(): Promise<QualityPreset[]>;
   setDefaultQualityPreset(id: number): Promise<boolean>;
+  getQualityPresets(): Promise<QualityPreset[]>;
+  deleteAllQualityPresets(): Promise<void>;
   
   // Batch Download operations
   getBatchDownload(id: number): Promise<BatchDownload | undefined>;
@@ -70,8 +77,9 @@ export interface IStorage {
   updateBatchDownloadItem(id: number, item: Partial<BatchDownloadItem>): Promise<BatchDownloadItem | undefined>;
   getBatchDownloadItems(batchId: number): Promise<BatchDownloadItem[]>;
   deleteBatchDownloadItem(id: number): Promise<boolean>;
-  updateBatchDownloadProgress(batchId: number): Promise<void>; // Update batch progress based on items status
+  updateBatchDownloadProgress(batchId: number): Promise<void>;
   deleteDownloadedVideos(): Promise<void>;
+  deleteAllBatchDownloadItems(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -104,6 +112,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(videos)
+      .where(eq(videos.downloaded, true))
       .orderBy(desc(videos.createdAt))
       .limit(limit)
       .offset(offset);
@@ -170,7 +179,7 @@ export class DatabaseStorage implements IStorage {
   async deleteDownload(id: number): Promise<boolean> {
     try {
       const result = await db.delete(downloads).where(eq(downloads.id, id));
-      return result.rowCount > 0;
+      return (result.rowCount ?? 0) > 0;
     } catch (error) {
       console.error("Erro ao deletar download:", error);
       return false;
@@ -216,6 +225,13 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(collections)
       .orderBy(collections.name);
+  }
+
+  async deleteAllCollections(): Promise<void> {
+    // Primeiro remove todas as relações de vídeos com coleções
+    await db.delete(videoCollections);
+    // Então remove todas as coleções
+    await db.delete(collections);
   }
 
   // Video-Collection operations
@@ -611,575 +627,47 @@ export class DatabaseStorage implements IStorage {
   async deleteDownloadedVideos(): Promise<void> {
     await db.delete(videos).where(eq(videos.downloaded, true));
   }
-}
 
-export class MemStorage implements IStorage {
-  private videos: Map<number, Video>;
-  private downloads: Map<number, Download>;
-  private apiConfig?: ApiConfig;
-  private collections: Map<number, Collection>;
-  private videoCollections: Map<string, VideoCollection>;
-  private qualityPresets: Map<number, QualityPreset>;
-  private batchDownloads: Map<number, BatchDownload>;
-  private batchDownloadItems: Map<number, BatchDownloadItem>;
-  private currentVideoId: number;
-  private currentDownloadId: number;
-  private currentApiConfigId: number;
-  private currentCollectionId: number;
-  private currentPresetId: number;
-  private currentBatchId: number;
-  private currentBatchItemId: number;
-
-  constructor() {
-    this.videos = new Map();
-    this.downloads = new Map();
-    this.collections = new Map();
-    this.videoCollections = new Map();
-    this.qualityPresets = new Map();
-    this.batchDownloads = new Map();
-    this.batchDownloadItems = new Map();
-    this.currentVideoId = 1;
-    this.currentDownloadId = 1;
-    this.currentApiConfigId = 1;
-    this.currentCollectionId = 1;
-    this.currentPresetId = 1;
-    this.currentBatchId = 1;
-    this.currentBatchItemId = 1;
+  // Video Collections
+  async getVideoCollections(): Promise<VideoCollection[]> {
+    return await db
+      .select()
+      .from(videoCollections)
+      .orderBy(desc(videoCollections.addedAt));
   }
 
-  // Video operations
-  async getVideo(id: number): Promise<Video | undefined> {
-    return this.videos.get(id);
+  async deleteAllVideoCollections(): Promise<void> {
+    await db.delete(videoCollections);
   }
 
-  async getVideoByVideoId(videoId: string): Promise<Video | undefined> {
-    return Array.from(this.videos.values()).find(
-      (video) => video.videoId === videoId,
-    );
+  // Quality Presets
+  async getQualityPresets(): Promise<QualityPreset[]> {
+    return await db
+      .select()
+      .from(qualityPresets)
+      .orderBy(desc(qualityPresets.createdAt));
   }
 
-  async createVideo(video: InsertVideo): Promise<Video> {
-    const id = this.currentVideoId++;
-    const now = new Date();
-    const newVideo: Video = { 
-      ...video, 
-      id, 
-      createdAt: now 
-    };
-    this.videos.set(id, newVideo);
-    return newVideo;
+  async deleteAllQualityPresets(): Promise<void> {
+    await db.delete(qualityPresets);
   }
 
-  async updateVideo(id: number, videoUpdate: Partial<Video>): Promise<Video | undefined> {
-    const existingVideo = this.videos.get(id);
-    if (!existingVideo) return undefined;
-    
-    const updatedVideo = { ...existingVideo, ...videoUpdate };
-    this.videos.set(id, updatedVideo);
-    return updatedVideo;
+  // Batch Download Items
+  async deleteAllBatchDownloadItems(): Promise<void> {
+    await db.delete(batchDownloadItems);
   }
 
-  async listVideos(limit: number = 10, offset: number = 0): Promise<Video[]> {
-    return Array.from(this.videos.values())
-      .sort((a, b) => {
-        const dateA = a.createdAt?.getTime() || 0;
-        const dateB = b.createdAt?.getTime() || 0;
-        return dateB - dateA;
-      })
-      .slice(offset, offset + limit);
+  // API Configs
+  async getApiConfigs(): Promise<ApiConfig[]> {
+    return await db
+      .select()
+      .from(apiConfigs)
+      .orderBy(desc(apiConfigs.updatedAt));
   }
 
-  // Download operations
-  async getDownload(id: number): Promise<Download | undefined> {
-    return this.downloads.get(id);
-  }
-
-  async getDownloadByVideoId(videoId: string): Promise<Download | undefined> {
-    return Array.from(this.downloads.values()).find(
-      (download) => download.videoId === videoId,
-    );
-  }
-
-  async createDownload(download: InsertDownload): Promise<Download> {
-    const id = this.currentDownloadId++;
-    const now = new Date();
-    const newDownload: Download = { 
-      ...download, 
-      id, 
-      startedAt: now,
-      completedAt: null 
-    };
-    this.downloads.set(id, newDownload);
-    return newDownload;
-  }
-
-  async updateDownload(id: number, downloadUpdate: Partial<Download>): Promise<Download | undefined> {
-    const existingDownload = this.downloads.get(id);
-    if (!existingDownload) return undefined;
-    
-    const updatedDownload = { ...existingDownload, ...downloadUpdate };
-    this.downloads.set(id, updatedDownload);
-    return updatedDownload;
-  }
-
-  async listDownloads(limit: number = 10, offset: number = 0): Promise<Download[]> {
-    return Array.from(this.downloads.values())
-      .sort((a, b) => {
-        const dateA = a.startedAt?.getTime() || 0;
-        const dateB = b.startedAt?.getTime() || 0;
-        return dateB - dateA;
-      })
-      .slice(offset, offset + limit);
-  }
-
-  async listInProgressDownloads(): Promise<Download[]> {
-    return Array.from(this.downloads.values())
-      .filter((download) => download.status === "downloading")
-      .sort((a, b) => {
-        const dateA = a.startedAt?.getTime() || 0;
-        const dateB = b.startedAt?.getTime() || 0;
-        return dateB - dateA;
-      });
-  }
-
-  // API Config operations
-  async getApiConfig(): Promise<ApiConfig | undefined> {
-    return this.apiConfig;
-  }
-
-  async saveApiConfig(config: InsertApiConfig): Promise<ApiConfig> {
-    const id = this.currentApiConfigId;
-    const now = new Date();
-    this.apiConfig = { 
-      ...config, 
-      id, 
-      updatedAt: now 
-    };
-    return this.apiConfig;
-  }
-
-  // Collection operations (stubs for compatibility)
-  async getCollection(id: number): Promise<Collection | undefined> {
-    return this.collections.get(id);
-  }
-
-  async createCollection(collection: InsertCollection): Promise<Collection> {
-    const id = this.currentCollectionId++;
-    const now = new Date();
-    const newCollection: Collection = { 
-      ...collection, 
-      id, 
-      createdAt: now,
-      updatedAt: now
-    };
-    this.collections.set(id, newCollection);
-    return newCollection;
-  }
-
-  async updateCollection(id: number, collectionUpdate: Partial<Collection>): Promise<Collection | undefined> {
-    const existingCollection = this.collections.get(id);
-    if (!existingCollection) return undefined;
-    
-    const updatedCollection = { 
-      ...existingCollection, 
-      ...collectionUpdate,
-      updatedAt: new Date()
-    };
-    this.collections.set(id, updatedCollection);
-    return updatedCollection;
-  }
-
-  async deleteCollection(id: number): Promise<boolean> {
-    if (!this.collections.has(id)) return false;
-    return this.collections.delete(id);
-  }
-
-  async listCollections(): Promise<Collection[]> {
-    return Array.from(this.collections.values())
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  // Video-Collection operations
-  async addVideoToCollection(videoId: number, collectionId: number): Promise<VideoCollection> {
-    const key = `${videoId}-${collectionId}`;
-    const now = new Date();
-    const videoCollection: VideoCollection = {
-      videoId,
-      collectionId,
-      addedAt: now
-    };
-    this.videoCollections.set(key, videoCollection);
-    return videoCollection;
-  }
-
-  async removeVideoFromCollection(videoId: number, collectionId: number): Promise<boolean> {
-    const key = `${videoId}-${collectionId}`;
-    if (!this.videoCollections.has(key)) return false;
-    return this.videoCollections.delete(key);
-  }
-
-  async getVideosInCollection(collectionId: number): Promise<Video[]> {
-    const videoIds = Array.from(this.videoCollections.values())
-      .filter(vc => vc.collectionId === collectionId)
-      .map(vc => vc.videoId);
-    
-    if (videoIds.length === 0) return [];
-    
-    return Array.from(this.videos.values())
-      .filter(video => videoIds.includes(video.id))
-      .sort((a, b) => {
-        const dateA = a.createdAt?.getTime() || 0;
-        const dateB = b.createdAt?.getTime() || 0;
-        return dateB - dateA;
-      });
-  }
-
-  // Quality Preset operations
-  async getQualityPreset(id: number): Promise<QualityPreset | undefined> {
-    return this.qualityPresets.get(id);
-  }
-
-  async getDefaultQualityPreset(): Promise<QualityPreset | undefined> {
-    const defaultPreset = Array.from(this.qualityPresets.values())
-      .find(preset => preset.isDefault);
-    
-    if (defaultPreset) return defaultPreset;
-    
-    // If no default, return the first one
-    if (this.qualityPresets.size > 0) {
-      return Array.from(this.qualityPresets.values())[0];
-    }
-    
-    return undefined;
-  }
-
-  async createQualityPreset(preset: InsertQualityPreset): Promise<QualityPreset> {
-    const id = this.currentPresetId++;
-    const now = new Date();
-    
-    // If this is set as default, clear other defaults
-    if (preset.isDefault) {
-      for (const existingPreset of this.qualityPresets.values()) {
-        if (existingPreset.isDefault) {
-          this.qualityPresets.set(existingPreset.id, {
-            ...existingPreset,
-            isDefault: false,
-            updatedAt: now
-          });
-        }
-      }
-    }
-    
-    const newPreset: QualityPreset = {
-      ...preset,
-      id,
-      createdAt: now,
-      updatedAt: now
-    };
-    
-    this.qualityPresets.set(id, newPreset);
-    return newPreset;
-  }
-
-  async updateQualityPreset(id: number, presetUpdate: Partial<QualityPreset>): Promise<QualityPreset | undefined> {
-    const existingPreset = this.qualityPresets.get(id);
-    if (!existingPreset) return undefined;
-    
-    const now = new Date();
-    
-    // If this is being set as default, clear other defaults
-    if (presetUpdate.isDefault) {
-      for (const existingPreset of this.qualityPresets.values()) {
-        if (existingPreset.isDefault && existingPreset.id !== id) {
-          this.qualityPresets.set(existingPreset.id, {
-            ...existingPreset,
-            isDefault: false,
-            updatedAt: now
-          });
-        }
-      }
-    }
-    
-    const updatedPreset = {
-      ...existingPreset,
-      ...presetUpdate,
-      updatedAt: now
-    };
-    
-    this.qualityPresets.set(id, updatedPreset);
-    return updatedPreset;
-  }
-
-  async deleteQualityPreset(id: number): Promise<boolean> {
-    const preset = this.qualityPresets.get(id);
-    if (!preset) return false;
-    
-    // If deleting the default preset, set another as default
-    if (preset.isDefault && this.qualityPresets.size > 1) {
-      const anotherPreset = Array.from(this.qualityPresets.values())
-        .find(p => p.id !== id);
-      
-      if (anotherPreset) {
-        this.qualityPresets.set(anotherPreset.id, {
-          ...anotherPreset,
-          isDefault: true,
-          updatedAt: new Date()
-        });
-      }
-    }
-    
-    return this.qualityPresets.delete(id);
-  }
-
-  async listQualityPresets(): Promise<QualityPreset[]> {
-    return Array.from(this.qualityPresets.values())
-      .sort((a, b) => {
-        // Default preset comes first
-        if (a.isDefault && !b.isDefault) return -1;
-        if (!a.isDefault && b.isDefault) return 1;
-        // Then sort by name
-        return a.name.localeCompare(b.name);
-      });
-  }
-
-  async setDefaultQualityPreset(id: number): Promise<boolean> {
-    const preset = this.qualityPresets.get(id);
-    if (!preset) return false;
-    
-    const now = new Date();
-    
-    // Clear all defaults
-    for (const existingPreset of this.qualityPresets.values()) {
-      if (existingPreset.isDefault) {
-        this.qualityPresets.set(existingPreset.id, {
-          ...existingPreset,
-          isDefault: false,
-          updatedAt: now
-        });
-      }
-    }
-    
-    // Set new default
-    this.qualityPresets.set(id, {
-      ...preset,
-      isDefault: true,
-      updatedAt: now
-    });
-    
-    return true;
-  }
-  
-  // Other required methods
-  async deleteAllDownloads(): Promise<void> {
-    this.downloads.clear();
-  }
-  
-  // Batch Download operations
-  
-  async getBatchDownload(id: number): Promise<BatchDownload | undefined> {
-    return this.batchDownloads.get(id);
-  }
-
-  async createBatchDownload(batch: InsertBatchDownload): Promise<BatchDownload> {
-    const id = this.currentBatchId++;
-    const now = new Date();
-    const newBatch: BatchDownload = {
-      ...batch,
-      id,
-      totalVideos: 0,
-      completedVideos: 0,
-      failedVideos: 0,
-      status: "pending",
-      createdAt: now,
-      updatedAt: now,
-      completedAt: null
-    };
-    this.batchDownloads.set(id, newBatch);
-    return newBatch;
-  }
-
-  async updateBatchDownload(id: number, batchUpdate: Partial<BatchDownload>): Promise<BatchDownload | undefined> {
-    const existingBatch = this.batchDownloads.get(id);
-    if (!existingBatch) return undefined;
-    
-    const updatedBatch = {
-      ...existingBatch,
-      ...batchUpdate,
-      updatedAt: new Date()
-    };
-    this.batchDownloads.set(id, updatedBatch);
-    return updatedBatch;
-  }
-
-  async deleteBatchDownload(id: number): Promise<boolean> {
-    if (!this.batchDownloads.has(id)) return false;
-    
-    // Delete associated batch items
-    for (const [itemId, item] of this.batchDownloadItems.entries()) {
-      if (item.batchId === id) {
-        this.batchDownloadItems.delete(itemId);
-      }
-    }
-    
-    return this.batchDownloads.delete(id);
-  }
-
-  async listBatchDownloads(limit: number = 10, offset: number = 0): Promise<BatchDownload[]> {
-    return Array.from(this.batchDownloads.values())
-      .sort((a, b) => {
-        const dateA = a.createdAt?.getTime() || 0;
-        const dateB = b.createdAt?.getTime() || 0;
-        return dateB - dateA;
-      })
-      .slice(offset, offset + limit);
-  }
-
-  async listActiveBatchDownloads(): Promise<BatchDownload[]> {
-    return Array.from(this.batchDownloads.values())
-      .filter(batch => batch.status === 'pending' || batch.status === 'in-progress')
-      .sort((a, b) => {
-        const dateA = a.createdAt?.getTime() || 0;
-        const dateB = b.createdAt?.getTime() || 0;
-        return dateB - dateA;
-      });
-  }
-  
-  // Batch Download Items operations
-  async getBatchDownloadItem(id: number): Promise<BatchDownloadItem | undefined> {
-    return this.batchDownloadItems.get(id);
-  }
-
-  async createBatchDownloadItem(item: InsertBatchDownloadItem): Promise<BatchDownloadItem> {
-    const id = this.currentBatchItemId++;
-    const now = new Date();
-    const newItem: BatchDownloadItem = {
-      ...item,
-      id,
-      downloadId: null,
-      status: "pending",
-      createdAt: now,
-      updatedAt: now,
-      error: null
-    };
-    this.batchDownloadItems.set(id, newItem);
-    
-    // Update batch totalVideos
-    const batch = this.batchDownloads.get(item.batchId);
-    if (batch) {
-      this.batchDownloads.set(item.batchId, {
-        ...batch,
-        totalVideos: batch.totalVideos + 1,
-        updatedAt: now
-      });
-    }
-    
-    return newItem;
-  }
-
-  async updateBatchDownloadItem(id: number, itemUpdate: Partial<BatchDownloadItem>): Promise<BatchDownloadItem | undefined> {
-    const existingItem = this.batchDownloadItems.get(id);
-    if (!existingItem) return undefined;
-    
-    const now = new Date();
-    const updatedItem = {
-      ...existingItem,
-      ...itemUpdate,
-      updatedAt: now
-    };
-    this.batchDownloadItems.set(id, updatedItem);
-    
-    // If status changed to completed or failed, update batch progress
-    if (itemUpdate.status === 'completed' || itemUpdate.status === 'failed') {
-      await this.updateBatchDownloadProgress(existingItem.batchId);
-    }
-    
-    return updatedItem;
-  }
-
-  async getBatchDownloadItems(batchId: number): Promise<BatchDownloadItem[]> {
-    return Array.from(this.batchDownloadItems.values())
-      .filter(item => item.batchId === batchId)
-      .sort((a, b) => a.order - b.order);
-  }
-
-  async deleteBatchDownloadItem(id: number): Promise<boolean> {
-    const item = this.batchDownloadItems.get(id);
-    if (!item) return false;
-    
-    const batchId = item.batchId;
-    const deleted = this.batchDownloadItems.delete(id);
-    
-    if (deleted) {
-      // Update batch counts
-      const batch = this.batchDownloads.get(batchId);
-      if (batch) {
-        this.batchDownloads.set(batchId, {
-          ...batch,
-          totalVideos: batch.totalVideos - 1,
-          updatedAt: new Date()
-        });
-        
-        await this.updateBatchDownloadProgress(batchId);
-      }
-    }
-    
-    return deleted;
-  }
-
-  async updateBatchDownloadProgress(batchId: number): Promise<void> {
-    const batch = this.batchDownloads.get(batchId);
-    if (!batch) return;
-    
-    const items = Array.from(this.batchDownloadItems.values())
-      .filter(item => item.batchId === batchId);
-    
-    const completedVideos = items.filter(item => item.status === 'completed').length;
-    const failedVideos = items.filter(item => item.status === 'failed').length;
-    const totalVideos = items.length;
-    
-    let status = 'pending';
-    let completedAt = null;
-    
-    if (totalVideos === 0) {
-      status = 'pending';
-    } else if (completedVideos + failedVideos === totalVideos) {
-      status = failedVideos === totalVideos ? 'failed' : 'completed';
-      completedAt = new Date();
-    } else if (completedVideos + failedVideos > 0) {
-      status = 'in-progress';
-    }
-    
-    this.batchDownloads.set(batchId, {
-      ...batch,
-      completedVideos,
-      failedVideos,
-      totalVideos,
-      status,
-      completedAt,
-      updatedAt: new Date()
-    });
-  }
-
-  async deleteDownloadedVideos(): Promise<void> {
-    for (const [id, video] of this.videos.entries()) {
-      if (video.downloaded) {
-        this.videos.delete(id);
-      }
-    }
-  }
-
-  async deleteDownload(id: number): Promise<boolean> {
-    try {
-      if (!this.downloads.has(id)) return false;
-      return this.downloads.delete(id);
-    } catch (error) {
-      console.error("Erro ao deletar download:", error);
-      return false;
-    }
+  async deleteAllApiConfigs(): Promise<void> {
+    await db.delete(apiConfigs);
   }
 }
 
-// Use a database storage implementation if DATABASE_URL exists, otherwise use memory storage
-export const storage = process.env.DATABASE_URL 
-  ? new DatabaseStorage() 
-  : new MemStorage();
+export const storage = new DatabaseStorage();

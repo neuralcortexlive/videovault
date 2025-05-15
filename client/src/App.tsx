@@ -9,6 +9,7 @@ import Home from "@/pages/Home";
 import Downloads from "@/pages/Downloads";
 import Library from "@/pages/Library";
 import History from "@/pages/History";
+import Database from "./pages/Database";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
 
@@ -22,10 +23,11 @@ function Router() {
         <Sidebar currentPath={location} />
         <main className="flex-1 flex flex-col overflow-y-auto bg-background mac-scrollbar">
           <Switch>
-            <Route path="/" component={Home} />
+            <Route exact path="/" component={Home} />
             <Route path="/downloads" component={Downloads} />
             <Route path="/library" component={Library} />
             <Route path="/history" component={History} />
+            <Route path="/database" component={Database} />
             <Route component={NotFound} />
           </Switch>
         </main>

@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
+const isDev = true; // Sempre em modo de desenvolvimento
+
 export default defineConfig({
   plugins: [
     react(),

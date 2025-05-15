@@ -5,7 +5,9 @@ import {
   ListVideo, 
   History as HistoryIcon, 
   CheckCircle, 
-  RefreshCw 
+  RefreshCw,
+  Library,
+  Database
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
@@ -23,6 +25,14 @@ interface Download {
   downloadedSize: number | null;
   totalSize: number | null;
 }
+
+const navigation = [
+  { name: "Pesquisar", href: "/", icon: Search },
+  { name: "Downloads", href: "/downloads", icon: Download },
+  { name: "Biblioteca", href: "/library", icon: Library },
+  { name: "Histórico", href: "/history", icon: HistoryIcon },
+  { name: "Banco de Dados", href: "/database", icon: Database },
+];
 
 export default function Sidebar({ currentPath }: SidebarProps) {
   const { data: activeDownloads } = useQuery<Download[]>({
@@ -78,6 +88,17 @@ export default function Sidebar({ currentPath }: SidebarProps) {
           <div className="flex items-center space-x-3 w-full">
             <HistoryIcon className="h-5 w-5" />
             <span>History</span>
+          </div>
+        </Link>
+      </div>
+      
+      <div className={`flex items-center space-x-3 px-3 py-2 rounded-lg ${
+          currentPath === '/database' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+        }`}>
+        <Link href="/database">
+          <div className="flex items-center space-x-3 w-full">
+            <Database className="h-5 w-5" />
+            <span>Banco de Dados</span>
           </div>
         </Link>
       </div>

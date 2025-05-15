@@ -84,7 +84,7 @@ export class YtDlpDownloader extends EventEmitter {
       console.log("[yt-dlp] Command:", [...args, videoUrl].join(' '));
       
       // Use full path to yt-dlp if available
-      const ytdlpPath = process.env.YTDLP_PATH || '/opt/anaconda3/bin/yt-dlp';
+      const ytdlpPath = '/opt/anaconda3/bin/yt-dlp';
       console.log("[yt-dlp] Using path:", ytdlpPath);
       
       // Verificar se o yt-dlp está instalado e acessível
@@ -215,7 +215,7 @@ export class FfmpegProcessor extends EventEmitter {
       // Base arguments (overwrite output if exists)
       const args = ['-i', inputPath, '-y', ...options, outputPath];
 
-      const ffmpegPath = process.env.FFMPEG_PATH || '/usr/local/bin/ffmpeg';
+      const ffmpegPath = '/usr/local/bin/ffmpeg';
       console.log("[ffmpeg] Using path:", ffmpegPath);
       
       // Verificar se o ffmpeg está instalado e acessível

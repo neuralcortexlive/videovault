@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, json, primaryKey, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, json, primaryKey, jsonb, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -55,8 +55,8 @@ export const downloads = pgTable("downloads", {
   videoId: text("video_id").notNull(),
   status: text("status").notNull().default("pending"),
   progress: integer("progress").default(0),
-  totalSize: integer("total_size"),
-  downloadedSize: integer("downloaded_size"),
+  totalSize: doublePrecision("total_size"),
+  downloadedSize: doublePrecision("downloaded_size"),
   error: text("error"),
   format: text("format"),
   startedAt: timestamp("started_at").defaultNow(),

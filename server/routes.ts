@@ -20,9 +20,10 @@ if (!fs.existsSync(downloadsDir)) {
   fs.mkdirSync(downloadsDir, { recursive: true });
 }
 
-// Set yt-dlp and ffmpeg paths
-process.env.YTDLP_PATH = "/opt/anaconda3/bin/yt-dlp";
-process.env.FFMPEG_PATH = "/usr/local/bin/ffmpeg";
+// Configuração dos caminhos dos executáveis
+const YTDLP_PATH = "/opt/anaconda3/bin/yt-dlp";
+const FFMPEG_PATH = "/usr/local/bin/ffmpeg";
+const YOUTUBE_API_KEY = "AIzaSyBotvakfTmSC-f3m4RSLsMjnc83GB6xMs8";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // API Config routes
@@ -30,7 +31,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const config = await storage.getApiConfig();
       res.json({
-        youtubeApiKey: config?.youtubeApiKey || process.env.YOUTUBE_API_KEY || "",
+        youtubeApiKey: config?.youtubeApiKey || YOUTUBE_API_KEY,
       });
     } catch (error) {
       console.error("Error fetching API config:", error);
@@ -66,7 +67,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get API key from database or environment variable or use hardcoded key
       const config = await storage.getApiConfig();
-      const apiKey = config?.youtubeApiKey || process.env.YOUTUBE_API_KEY || "AIzaSyBotvakfTmSC-f3m4RSLsMjnc83GB6xMs8";
+      const apiKey = config?.youtubeApiKey || YOUTUBE_API_KEY;
 
       if (!apiKey) {
         return res.status(400).json({ error: "YouTube API key is not configured" });
@@ -92,7 +93,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Otherwise fetch from YouTube API
       const config = await storage.getApiConfig();
-      const apiKey = config?.youtubeApiKey || process.env.YOUTUBE_API_KEY || "AIzaSyBotvakfTmSC-f3m4RSLsMjnc83GB6xMs8";
+      const apiKey = config?.youtubeApiKey || YOUTUBE_API_KEY;
 
       if (!apiKey) {
         return res.status(400).json({ error: "YouTube API key is not configured" });
@@ -131,7 +132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch video details first
       const config = await storage.getApiConfig();
-      const apiKey = config?.youtubeApiKey || process.env.YOUTUBE_API_KEY || "AIzaSyBotvakfTmSC-f3m4RSLsMjnc83GB6xMs8";
+      const apiKey = config?.youtubeApiKey || YOUTUBE_API_KEY;
 
       if (!apiKey) {
         return res.status(400).json({ error: "YouTube API key is not configured" });
@@ -978,7 +979,7 @@ async function processBatch(batchId: number): Promise<void> {
           // Get video details from YouTube
           try {
             const config = await storage.getApiConfig();
-            const apiKey = config?.youtubeApiKey || process.env.YOUTUBE_API_KEY || "AIzaSyBotvakfTmSC-f3m4RSLsMjnc83GB6xMs8";
+            const apiKey = config?.youtubeApiKey || YOUTUBE_API_KEY;
             const videoDetails = await getVideoDetails(item.videoId, apiKey);
             video = await storage.createVideo({
               videoId: item.videoId,
