@@ -30,7 +30,7 @@ export default function VideoCard({ video, onDownload }: VideoCardProps) {
   
   return (
     <>
-      <div className="bg-card rounded-lg overflow-hidden shadow-md video-card">
+      <div className="bg-card rounded-lg overflow-hidden shadow-md video-card flex flex-col h-full">
         <div className="relative">
           <img 
             src={video.thumbnail} 
@@ -54,7 +54,7 @@ export default function VideoCard({ video, onDownload }: VideoCardProps) {
             </div>
           )}
         </div>
-        <div className="p-3">
+        <div className="flex flex-col flex-1 p-3">
           <h3 className="font-medium text-sm line-clamp-2">{video.title}</h3>
           <div className="flex justify-between items-center mt-2">
             <span className="text-xs text-muted-foreground">
@@ -63,7 +63,7 @@ export default function VideoCard({ video, onDownload }: VideoCardProps) {
             <span className="text-xs text-muted-foreground">{publishedTimeAgo}</span>
           </div>
         </div>
-        <div className="p-2 border-t border-border flex justify-between">
+        <div className="p-2 border-t border-border flex justify-between mt-auto">
           <Button 
             variant="ghost" 
             size="sm" 
