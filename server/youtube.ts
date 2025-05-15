@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { storage } from './storage';
 
 const YOUTUBE_API_BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
@@ -94,6 +95,8 @@ export interface VideoDetails {
   viewCount: number;
   likeCount: number;
   tags?: string[];
+  downloaded?: boolean;
+  downloadedAt?: string;
 }
 
 export async function searchYouTubeVideos(
@@ -140,7 +143,18 @@ export async function searchYouTubeVideos(
     );
 
     // Map video details to our format
-    const videos = videoResponse.data.items.map(mapVideoDetails);
+    const videos = await Promise.all(videoResponse.data.items.map(async (item) => {
+      const videoDetails = mapVideoDetails(item);
+      
+      // Verificar se o vídeo já foi baixado
+      const storedVideo = await storage.getVideoByVideoId(videoDetails.videoId);
+      if (storedVideo) {
+        videoDetails.downloaded = storedVideo.downloaded || false;
+        videoDetails.downloadedAt = storedVideo.downloadedAt?.toISOString();
+      }
+      
+      return videoDetails;
+    }));
 
     return {
       videos,

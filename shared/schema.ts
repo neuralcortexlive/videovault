@@ -53,6 +53,7 @@ export type Video = typeof videos.$inferSelect;
 export const downloads = pgTable("downloads", {
   id: serial("id").primaryKey(),
   videoId: text("video_id").notNull(),
+  title: text("title").notNull(),
   status: text("status").notNull().default("pending"),
   progress: integer("progress").default(0),
   totalSize: doublePrecision("total_size"),
@@ -69,7 +70,19 @@ export const insertDownloadSchema = createInsertSchema(downloads).omit({
   completedAt: true,
 });
 
-export type InsertDownload = z.infer<typeof insertDownloadSchema>;
+export type InsertDownload = {
+  videoId: string;
+  title?: string;
+  status?: string;
+  progress?: number | null;
+  totalSize?: number | null;
+  downloadedSize?: number | null;
+  error?: string | null;
+  format?: string | null;
+  startedAt?: Date;
+  completedAt?: Date | null;
+};
+
 export type Download = typeof downloads.$inferSelect;
 
 export const apiConfigs = pgTable("api_configs", {

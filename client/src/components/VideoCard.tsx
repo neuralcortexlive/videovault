@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Play, Download } from "lucide-react";
+import { Play, Download, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { parseDuration, formatViewCount } from "@/lib/utils";
 import VideoDetailModal from "@/components/VideoDetailModal";
+import { Badge } from "@/components/ui/badge";
 
 export interface VideoCardProps {
   video: {
@@ -14,6 +15,8 @@ export interface VideoCardProps {
     publishedAt: string;
     viewCount: number;
     duration: string;
+    downloaded?: boolean;
+    downloadedAt?: string;
   };
   onDownload: (videoId: string) => void;
 }
@@ -44,6 +47,12 @@ export default function VideoCard({ video, onDownload }: VideoCardProps) {
               {formattedDuration}
             </div>
           )}
+          {video.downloaded && (
+            <div className="absolute top-2 right-2 bg-green-500 bg-opacity-90 px-2 py-1 rounded text-xs text-white flex items-center gap-1">
+              <CheckCircle className="h-3 w-3" />
+              <span>Baixado</span>
+            </div>
+          )}
         </div>
         <div className="p-3">
           <h3 className="font-medium text-sm line-clamp-2">{video.title}</h3>
@@ -65,22 +74,35 @@ export default function VideoCard({ video, onDownload }: VideoCardProps) {
             <span>Preview</span>
           </Button>
           <Button 
-            variant="link" 
+            variant="default" 
             size="sm" 
-            className="mac-btn flex items-center space-x-1 text-primary hover:text-primary/90"
+            className="text-xs"
             onClick={() => onDownload(video.videoId)}
+            disabled={video.downloaded}
           >
-            <Download className="h-3.5 w-3.5 mr-1" />
-            <span>Download</span>
+            {video.downloaded ? (
+              <>
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Já Baixado
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-1" />
+                Baixar
+              </>
+            )}
           </Button>
         </div>
       </div>
       
-      <VideoDetailModal 
+      <VideoDetailModal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         videoId={video.videoId}
-        onDownload={onDownload}
+        onDownload={() => {
+          onDownload(video.videoId);
+          setIsDetailModalOpen(false);
+        }}
       />
     </>
   );

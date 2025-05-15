@@ -162,6 +162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create a download record
       const download = await storage.createDownload({
         videoId,
+        title: video.title,
         status: "pending",
         progress: 0,
         format: format || "mp4",
@@ -203,6 +204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               progress: Math.round(progress.percent),
               totalSize: progress.totalBytes,
               downloadedSize: progress.downloadedBytes,
+              title: video.title
             });
           });
 
@@ -296,9 +298,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rota para limpar todos os downloads (botão "Clear")
+  app.delete("/api/downloads/all", async (req: Request, res: Response) => {
+    try {
+      console.log("Iniciando limpeza de todos os downloads");
+      
+      // Primeiro cancela todos os downloads ativos
+      const activeDownloadsList = await storage.listInProgressDownloads();
+      console.log("Downloads ativos encontrados:", activeDownloadsList.length);
+      
+      for (const download of activeDownloadsList) {
+        console.log("Processando download ativo:", download.id);
+        const downloader = activeDownloads.get(download.id);
+        if (downloader) {
+          console.log("Cancelando download:", download.id);
+          downloader.abort();
+          activeDownloads.delete(download.id);
+        }
+        await storage.updateDownload(download.id, { status: "cancelled" });
+      }
+      
+      // Então exclui todos os downloads do banco de dados
+      console.log("Excluindo todos os downloads do banco de dados");
+      await storage.deleteAllDownloads();
+      
+      // Limpa o mapa de downloads ativos
+      console.log("Limpando mapa de downloads ativos");
+      activeDownloads.clear();
+      
+      res.json({ success: true, message: "Histórico de downloads limpo com sucesso" });
+    } catch (error: any) {
+      console.error("Erro ao limpar histórico de downloads:", error);
+      res.status(500).json({ 
+        error: "Falha ao limpar histórico de downloads", 
+        details: error.message 
+      });
+    }
+  });
+
   app.delete("/api/downloads/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      console.log("Received ID for deletion:", req.params.id, "Parsed ID:", id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "ID inválido" });
       }
@@ -320,37 +361,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Erro ao deletar download:", error);
       res.status(500).json({ error: "Erro ao deletar download" });
-    }
-  });
-  
-  // Rota para limpar todos os downloads (botão "Clear")
-  app.delete("/api/downloads/all", async (req: Request, res: Response) => {
-    try {
-      // Primeiro cancela todos os downloads ativos
-      const activeDownloadsList = await storage.listInProgressDownloads();
-      
-      for (const download of activeDownloadsList) {
-        const downloader = activeDownloads.get(download.id);
-        if (downloader) {
-          downloader.abort();
-          activeDownloads.delete(download.id);
-        }
-        await storage.updateDownload(download.id, { status: "cancelled" });
-      }
-      
-      // Então exclui todos os downloads do banco de dados
-      await storage.deleteAllDownloads();
-      
-      // Limpa o mapa de downloads ativos
-      activeDownloads.clear();
-      
-      res.json({ success: true, message: "Histórico de downloads limpo com sucesso" });
-    } catch (error: any) {
-      console.error("Erro ao limpar histórico de downloads:", error);
-      res.status(500).json({ 
-        error: "Falha ao limpar histórico de downloads", 
-        details: error.message 
-      });
     }
   });
 
@@ -1006,8 +1016,10 @@ async function processBatch(batchId: number): Promise<void> {
         // Create a download entry
         const download = await storage.createDownload({
           videoId: item.videoId,
+          title: video.title,
           status: "pending",
-          format: preset?.format || "mp4"
+          progress: 0,
+          format: preset?.format || "mp4",
         });
         
         // Update batch item with download ID
@@ -1036,7 +1048,8 @@ async function processBatch(batchId: number): Promise<void> {
             progress: progress.percent,
             downloadedSize: progress.downloadedBytes,
             totalSize: progress.totalBytes,
-            status: "downloading"
+            status: "downloading",
+            title: video.title
           });
         });
         

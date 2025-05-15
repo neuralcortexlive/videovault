@@ -24,6 +24,7 @@ interface Download {
   progress: number;
   downloadedSize: number | null;
   totalSize: number | null;
+  title: string;
 }
 
 const navigation = [
@@ -113,7 +114,7 @@ export default function Sidebar({ currentPath }: SidebarProps) {
                 <RefreshCw className="h-5 w-5 text-primary animate-spin" />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm truncate w-36">{download.videoId}</span>
+                <span className="text-sm truncate w-36">{download.title}</span>
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-muted-foreground">
                     {download.progress}%
@@ -135,7 +136,7 @@ export default function Sidebar({ currentPath }: SidebarProps) {
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
               <div className="flex flex-col">
-                <span className="text-sm truncate w-36">{download.videoId}</span>
+                <span className="text-sm truncate w-36">{download.title}</span>
                 <span className="text-xs text-muted-foreground">
                   Completed • {download.totalSize ? formatBytes(download.totalSize) : 'Unknown size'}
                 </span>

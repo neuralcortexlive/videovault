@@ -1,16 +1,29 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, X, CheckCircle, AlertCircle } from "lucide-react";
+import { Download, X, CheckCircle, AlertCircle, Trash2 } from "lucide-react";
 import { formatBytes, formatDuration } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface DownloadItem {
   id: number;
   videoId: string;
+  title: string;
   status: string;
   progress: number;
   totalSize: number | null;
@@ -26,6 +39,55 @@ export default function Downloads() {
     queryKey: ['/api/downloads'],
     refetchInterval: 3000, // Poll for updates every 3 seconds
   });
+
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      console.log("Iniciando chamada à API para limpar downloads");
+      const response = await fetch("/api/downloads/all", {
+        method: "DELETE",
+      });
+      
+      console.log("Resposta da API recebida:", response.status);
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Erro retornado pela API:", error);
+        throw new Error(error.error || "Falha ao limpar histórico de downloads");
+      }
+      
+      return true;
+    },
+    onSuccess: () => {
+      console.log("Mutação concluída com sucesso");
+      queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/downloads/active"] });
+      toast({
+        title: "Sucesso",
+        description: "Histórico de downloads limpo com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      console.error("Erro na mutação:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Falha ao limpar histórico de downloads",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleClearAllDownloads = async () => {
+    try {
+      console.log("Iniciando limpeza de todos os downloads");
+      await clearAllMutation.mutateAsync();
+      console.log("Limpeza de downloads concluída com sucesso");
+    } catch (error) {
+      console.error("Erro detalhado ao limpar downloads:", error);
+      // Error is handled in the mutation
+    }
+  };
 
   const cancelDownload = async (id: number) => {
     try {
@@ -81,7 +143,32 @@ export default function Downloads() {
 
   return (
     <div className="p-4">
-      <h2 className="text-2xl font-semibold mb-4">Downloads</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-semibold">Downloads</h2>
+        
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm" className="flex items-center gap-1">
+              <Trash2 className="h-4 w-4" />
+              <span>Limpar Tudo</span>
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Limpar Histórico de Downloads</AlertDialogTitle>
+              <AlertDialogDescription>
+                Isso irá excluir permanentemente todo o histórico de downloads. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleClearAllDownloads}>
+                Limpar Tudo
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
       
       {downloads && downloads.length > 0 ? (
         <div className="space-y-4">
@@ -101,7 +188,7 @@ export default function Downloads() {
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
-                        <h3 className="font-medium truncate pr-4">{download.videoId}</h3>
+                        <h3 className="font-medium truncate pr-4">{download.title}</h3>
                         <Badge variant={
                           download.status === 'completed' ? 'default' : 
                           download.status === 'downloading' ? 'secondary' : 'outline'

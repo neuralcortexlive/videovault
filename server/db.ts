@@ -6,7 +6,7 @@ import * as schema from "@shared/schema";
 neonConfig.webSocketConstructor = ws;
 
 // URL do banco de dados Neon
-const DATABASE_URL = "postgresql://neondb_owner:npg_d5K9jYrqaNlA@ep-snowy-art-a5leclp6.us-east-2.aws.neon.tech/neondb?sslmode=require";
+const DATABASE_URL = "postgresql://neondb_owner:npg_UbvtWd9Gcu5r@ep-orange-moon-a4zqsh6t-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require";
 
 // Criar a pool de conexão
 const pool = new Pool({ connectionString: DATABASE_URL });

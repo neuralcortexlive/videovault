@@ -162,14 +162,20 @@ export class DatabaseStorage implements IStorage {
   
   async deleteAllDownloads(): Promise<void> {
     try {
+      console.log("Iniciando deleteAllDownloads");
+      
       // Primeiro atualiza o status de todos os downloads ativos para "cancelled"
+      console.log("Atualizando status dos downloads ativos para cancelled");
       await db
         .update(downloads)
         .set({ status: "cancelled" })
         .where(eq(downloads.status, "downloading"));
 
       // Então exclui todos os downloads
+      console.log("Excluindo todos os downloads do banco de dados");
       await db.delete(downloads);
+      
+      console.log("deleteAllDownloads concluído com sucesso");
     } catch (error) {
       console.error("Erro ao excluir downloads:", error);
       throw error;
