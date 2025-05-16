@@ -259,6 +259,7 @@ export default function Library() {
   const handleAddToCollection = async (videoId: number, collectionId: number) => {
     try {
       await addToCollectionMutation.mutateAsync({ videoId, collectionId });
+      await refetchVideos();
       toast({
         title: "Video Added",
         description: "Video added to collection successfully.",
@@ -275,6 +276,7 @@ export default function Library() {
   const handleRemoveFromCollection = async (videoId: number, collectionId: number) => {
     try {
       await removeFromCollectionMutation.mutateAsync({ videoId, collectionId });
+      await refetchVideos();
       toast({
         title: "Video Removed",
         description: "Video removed from collection successfully.",
