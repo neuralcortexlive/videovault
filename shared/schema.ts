@@ -28,14 +28,15 @@ export const videos = pgTable("videos", {
   publishedAt: timestamp("published_at"),
   viewCount: integer("view_count"),
   likeCount: integer("like_count"),
+  downloaded: boolean("downloaded").default(false),
+  deleted: boolean("deleted").default(false),
+  deletedAt: timestamp("deleted_at"),
   filepath: text("filepath"),
   filesize: integer("filesize"),
   quality: text("quality"),
   format: text("format"),
-  downloaded: boolean("downloaded").default(false),
-  downloadedAt: timestamp("downloaded_at"),
-  metadata: json("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
 
 export const videosRelations = relations(videos, ({ many }) => ({

@@ -15,7 +15,8 @@ import {
   Folder, 
   Plus,
   Pencil,
-  Trash
+  Trash,
+  Trash2
 } from "lucide-react";
 import { 
   Dialog,
@@ -46,6 +47,16 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import VideoPlayerModal from "@/components/VideoPlayerModal";
+import { 
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+  AlertDialogAction
+} from "@/components/ui/alert-dialog";
 
 interface Video {
   id: number;
@@ -60,6 +71,8 @@ interface Video {
   format: string;
   downloaded: boolean;
   downloadedAt: string;
+  deleted?: boolean;
+  deletedAt?: string;
 }
 
 // Componente para exibir os formulários de criação e edição de coleções
@@ -128,6 +141,8 @@ export default function Library() {
   const [selectedCollection, setSelectedCollection] = useState<number | null>(null);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   
   const { toast } = useToast();
   
@@ -442,31 +457,47 @@ export default function Library() {
                         </div>
                       </div>
                       <div className="p-2 border-t border-border flex justify-between">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="text-muted-foreground">
-                              <FolderPlus className="h-4 w-4 mr-1" />
-                              <span>Add to</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            {collections && collections.length > 0 ? (
-                              collections.map(collection => (
-                                <DropdownMenuItem 
-                                  key={collection.id}
-                                  onClick={() => handleAddToCollection(video.id, collection.id)}
-                                >
-                                  <Folder className="h-4 w-4 mr-2" />
-                                  {collection.name}
+                        <div className="flex gap-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="text-muted-foreground">
+                                <FolderPlus className="h-4 w-4 mr-1" />
+                                <span>Add to</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              {collections && collections.length > 0 ? (
+                                collections.map(collection => (
+                                  <DropdownMenuItem 
+                                    key={collection.id}
+                                    onClick={() => handleAddToCollection(video.id, collection.id)}
+                                  >
+                                    <Folder className="h-4 w-4 mr-2" />
+                                    {collection.name}
+                                  </DropdownMenuItem>
+                                ))
+                              ) : (
+                                <DropdownMenuItem disabled>
+                                  No collections yet
                                 </DropdownMenuItem>
-                              ))
-                            ) : (
-                              <DropdownMenuItem disabled>
-                                No collections yet
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setVideoToDelete(video);
+                              setIsDeleteDialogOpen(true);
+                            }}
+                            disabled={video.deleted}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Deletar
+                          </Button>
+                        </div>
                         <Button 
                           variant="link" 
                           size="sm" 
@@ -613,6 +644,53 @@ export default function Library() {
         }}
         videoId={selectedVideoId || ""}
       />
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deletar Vídeo</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja deletar este vídeo? Esta ação irá:
+              <ul className="list-disc list-inside mt-2">
+                <li>Remover o arquivo de vídeo do seu computador</li>
+                <li>Remover o arquivo de metadados</li>
+                <li>Marcar o vídeo como deletado na biblioteca</li>
+              </ul>
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!videoToDelete) return;
+                try {
+                  const response = await fetch(`/api/library/${videoToDelete.id}`, {
+                    method: 'DELETE',
+                  });
+                  if (!response.ok) throw new Error('Falha ao deletar vídeo');
+                  await refetchVideos();
+                  toast({
+                    title: "Vídeo Deletado",
+                    description: "O vídeo foi deletado com sucesso.",
+                  });
+                } catch (error) {
+                  toast({
+                    title: "Erro",
+                    description: "Falha ao deletar vídeo. Por favor, tente novamente.",
+                    variant: "destructive",
+                  });
+                }
+                setIsDeleteDialogOpen(false);
+                setVideoToDelete(null);
+              }}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Deletar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

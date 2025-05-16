@@ -153,7 +153,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           viewCount: videoDetails.viewCount,
           likeCount: videoDetails.likeCount,
           downloaded: false,
-          metadata: videoDetails,
           format: format || "mp4",
           quality: quality || "best",
         });
@@ -252,9 +251,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           await storage.updateVideo(video.id, {
             downloaded: true,
-            downloadedAt: new Date(),
             filepath: outputPath,
-            filesize: fileStats.size,
+            filesize: fs.statSync(outputPath).size
           });
 
           // Clean up
@@ -943,6 +941,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/library/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID inválido" });
+      }
+
+      const video = await storage.getVideo(id);
+      if (!video) {
+        return res.status(404).json({ error: "Vídeo não encontrado" });
+      }
+
+      // Se o vídeo foi baixado, deletar os arquivos
+      if (video.downloaded && video.filepath) {
+        try {
+          // Deletar o arquivo de vídeo
+          if (fs.existsSync(video.filepath)) {
+            fs.unlinkSync(video.filepath);
+          }
+
+          // Deletar o arquivo de metadados (.info.json)
+          const videoDir = path.dirname(video.filepath);
+          const videoTitle = path.basename(video.filepath, path.extname(video.filepath));
+          const metadataPath = path.join(videoDir, `${videoTitle}.info.json`);
+          
+          if (fs.existsSync(metadataPath)) {
+            console.log("Deletando arquivo de metadados:", metadataPath);
+            fs.unlinkSync(metadataPath);
+          }
+        } catch (error) {
+          console.error("Erro ao deletar arquivos do vídeo:", error);
+        }
+      }
+
+      // Atualizar o status do vídeo para 'deleted'
+      await storage.updateVideo(id, {
+        downloaded: false,
+        deleted: true,
+        deletedAt: new Date()
+      });
+
+      res.json({ success: true, message: "Vídeo deletado com sucesso" });
+    } catch (error: any) {
+      console.error("Erro ao deletar vídeo:", error);
+      res.status(500).json({ error: "Falha ao deletar vídeo", details: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
@@ -1001,7 +1047,9 @@ async function processBatch(batchId: number): Promise<void> {
               publishedAt: new Date(videoDetails.publishedAt),
               viewCount: videoDetails.viewCount,
               likeCount: videoDetails.likeCount,
-              downloaded: false
+              downloaded: false,
+              format: preset?.format || "mp4",
+              quality: preset?.videoQuality || "720p",
             });
           } catch (error: any) {
             console.error(`Failed to get details for video ${item.videoId}:`, error);
@@ -1060,7 +1108,6 @@ async function processBatch(batchId: number): Promise<void> {
           // Update video record
           await storage.updateVideo(video.id, {
             downloaded: true,
-            downloadedAt: new Date(),
             filepath: outputPath,
             filesize: fs.statSync(outputPath).size
           });
