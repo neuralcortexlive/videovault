@@ -13,6 +13,7 @@ export interface Video {
   deleted: boolean;
   deletedAt: Date | null;
   filepath: string | null;
+  inCollection: boolean;
   createdAt: Date;
   updatedAt: Date;
 } 

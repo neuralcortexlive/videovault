@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import type { Video } from "@/types/video";
 
 export interface Collection {
   id: number;
@@ -199,6 +200,20 @@ export function useClearAllDownloads() {
     onError: (error: Error) => {
       console.error("Erro ao limpar downloads:", error);
       throw error;
+    }
+  });
+}
+
+// Hook para obter todos os vídeos em coleções
+export function useAllCollectionVideos() {
+  return useQuery<Video[]>({
+    queryKey: ["/api/collections/videos"],
+    queryFn: async () => {
+      const response = await fetch("/api/collections/videos");
+      if (!response.ok) {
+        throw new Error("Failed to fetch all collection videos");
+      }
+      return response.json();
     }
   });
 }

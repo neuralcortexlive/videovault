@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ import {
   useDeleteCollection,
   useAddVideoToCollection,
   useRemoveVideoFromCollection,
+  useAllCollectionVideos,
   type Collection
 } from "@/hooks/useCollections";
 import { Label } from "@/components/ui/label";
@@ -73,6 +74,7 @@ interface Video {
   downloadedAt: string;
   deleted?: boolean;
   deletedAt?: string;
+  inCollection: boolean;
 }
 
 // Componente para exibir os formulários de criação e edição de coleções
@@ -134,7 +136,7 @@ function CollectionForm({
 // Componente principal da biblioteca
 export default function Library() {
   const [searchFilter, setSearchFilter] = useState("");
-  const [activeTab, setActiveTab] = useState("all-videos");
+  const [activeTab, setActiveTab] = useState("new");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [collectionToEdit, setCollectionToEdit] = useState<Collection | null>(null);
@@ -152,6 +154,7 @@ export default function Library() {
   });
   
   const { data: collections, isLoading: isCollectionsLoading } = useCollections();
+  const { data: allCollectionVideos } = useAllCollectionVideos();
   const { data: collectionVideos, isLoading: isCollectionVideosLoading } = useCollectionVideos(selectedCollection || 0);
   
   // Mutations
@@ -162,10 +165,35 @@ export default function Library() {
   const removeFromCollectionMutation = useRemoveVideoFromCollection();
   
   // Filtragem de vídeos
-  const filteredVideos = videos?.filter(video => 
-    video.title.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    video.channelTitle.toLowerCase().includes(searchFilter.toLowerCase())
-  );
+  const filteredVideos = videos?.filter((video: Video) => {
+    const matchesSearch = 
+      video.title.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      video.channelTitle.toLowerCase().includes(searchFilter.toLowerCase());
+
+    if (activeTab === "new") {
+      console.log('Vídeo:', video.title, 'inCollection:', video.inCollection);
+      return matchesSearch && !video.inCollection;
+    }
+
+    return matchesSearch;
+  }) || [];
+  
+  // Log para debug
+  useEffect(() => {
+    if (videos) {
+      console.log('Total videos:', videos.length);
+      console.log('Videos in collections:', videos.filter(v => v.inCollection === true).length);
+      console.log('Videos not in collections:', videos.filter(v => v.inCollection === false).length);
+      console.log('Videos in New tab:', videos.filter(v => v.inCollection === false).map(v => v.title));
+    }
+  }, [videos]);
+  
+  // Efeito para atualizar a aba ativa quando uma coleção é selecionada
+  useEffect(() => {
+    if (selectedCollection) {
+      setActiveTab(`collection-${selectedCollection}`);
+    }
+  }, [selectedCollection]);
   
   // Manipuladores de eventos para coleções
   const handleCreateCollection = async (data: { name: string, description: string | null }) => {
@@ -213,7 +241,7 @@ export default function Library() {
       await deleteCollectionMutation.mutateAsync(id);
       if (selectedCollection === id) {
         setSelectedCollection(null);
-        setActiveTab("all-videos");
+        setActiveTab("new");
       }
       toast({
         title: "Collection Deleted",
@@ -354,11 +382,11 @@ export default function Library() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
         <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent space-x-2">
           <TabsTrigger 
-            value="all-videos" 
+            value="new" 
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-t-md rounded-b-none border-b-2 data-[state=active]:border-primary data-[state=inactive]:border-transparent px-4 py-2"
             onClick={() => setSelectedCollection(null)}
           >
-            All Videos
+            New
           </TabsTrigger>
           
           {collections && collections.map(collection => (
@@ -422,7 +450,7 @@ export default function Library() {
           )}
         </div>
         
-        <TabsContent value="all-videos" className="pt-4">
+        <TabsContent value="new" className="pt-4">
           {videos && videos.length > 0 ? (
             <>
               {filteredVideos && filteredVideos.length > 0 ? (
@@ -623,7 +651,7 @@ export default function Library() {
                           <Folder className="h-12 w-12 text-muted-foreground mb-4" />
                           <h3 className="text-xl font-medium mb-2">Collection is Empty</h3>
                           <p className="text-muted-foreground text-center max-w-md">
-                            This collection doesn't have any videos yet. Add videos from the All Videos tab.
+                            This collection doesn't have any videos yet. Add videos from the New tab.
                           </p>
                         </CardContent>
                       </Card>

@@ -109,13 +109,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async listVideos(limit: number = 10, offset: number = 0): Promise<Video[]> {
-    return await db
-      .select()
-      .from(videos)
-      .where(eq(videos.downloaded, true))
-      .orderBy(desc(videos.createdAt))
-      .limit(limit)
-      .offset(offset);
+    try {
+      const result = await db
+        .select()
+        .from(videos)
+        .where(
+          and(
+            eq(videos.downloaded, true),
+            eq(videos.deleted, false)
+          )
+        )
+        .orderBy(desc(videos.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+      return result;
+    } catch (error) {
+      console.error("Error listing videos:", error);
+      throw error;
+    }
   }
 
   // Download operations
@@ -242,22 +254,69 @@ export class DatabaseStorage implements IStorage {
 
   // Video-Collection operations
   async addVideoToCollection(videoId: number, collectionId: number): Promise<VideoCollection> {
-    const [videoCollection] = await db
-      .insert(videoCollections)
-      .values({ videoId, collectionId })
-      .returning();
-    return videoCollection;
+    try {
+      // Primeiro, adiciona o vídeo à coleção
+      const videoCollection = await db
+        .insert(videoCollections)
+        .values({
+          videoId,
+          collectionId,
+          addedAt: new Date()
+        })
+        .returning();
+
+      // Atualiza o status do vídeo para indicar que está em uma coleção
+      await db
+        .update(videos)
+        .set({ 
+          inCollection: true,
+          updatedAt: new Date()
+        })
+        .where(eq(videos.id, videoId));
+
+      return videoCollection[0];
+    } catch (error) {
+      console.error("Error adding video to collection:", error);
+      throw error;
+    }
   }
 
   async removeVideoFromCollection(videoId: number, collectionId: number): Promise<boolean> {
-    const deletedItems = await db
-      .delete(videoCollections)
-      .where(and(
-        eq(videoCollections.videoId, videoId),
-        eq(videoCollections.collectionId, collectionId)
-      ))
-      .returning();
-    return deletedItems.length > 0;
+    try {
+      // Remove o vídeo da coleção
+      const deletedItems = await db
+        .delete(videoCollections)
+        .where(
+          and(
+            eq(videoCollections.videoId, videoId),
+            eq(videoCollections.collectionId, collectionId)
+          )
+        )
+        .returning();
+
+      // Verifica se o vídeo está em outras coleções
+      const remainingCollections = await db
+        .select()
+        .from(videoCollections)
+        .where(eq(videoCollections.videoId, videoId));
+
+      // Se não estiver em nenhuma outra coleção, atualiza inCollection para false
+      if (remainingCollections.length === 0) {
+        console.log('Atualizando inCollection para false para o vídeo:', videoId);
+        await db
+          .update(videos)
+          .set({ 
+            inCollection: false,
+            updatedAt: new Date()
+          })
+          .where(eq(videos.id, videoId));
+      }
+
+      return deletedItems.length > 0;
+    } catch (error) {
+      console.error("Error removing video from collection:", error);
+      throw error;
+    }
   }
 
   async getVideosInCollection(collectionId: number): Promise<Video[]> {
@@ -636,10 +695,17 @@ export class DatabaseStorage implements IStorage {
 
   // Video Collections
   async getVideoCollections(): Promise<VideoCollection[]> {
-    return await db
-      .select()
-      .from(videoCollections)
-      .orderBy(desc(videoCollections.addedAt));
+    try {
+      const result = await db
+        .select()
+        .from(videoCollections)
+        .orderBy(desc(videoCollections.addedAt));
+
+      return result;
+    } catch (error) {
+      console.error("Error getting video collections:", error);
+      throw error;
+    }
   }
 
   async deleteAllVideoCollections(): Promise<void> {

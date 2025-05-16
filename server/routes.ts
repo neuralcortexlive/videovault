@@ -367,8 +367,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const limit = parseInt(req.query.limit as string || "10", 10);
       const offset = parseInt(req.query.offset as string || "0", 10);
+      
+      // Busca todos os vídeos baixados
       const videos = await storage.listVideos(limit, offset);
-      res.json(videos);
+      
+      // Busca todos os vídeos que estão em coleções
+      const videoCollections = await storage.getVideoCollections();
+      const videoIdsInCollections = new Set(videoCollections.map(vc => vc.videoId));
+      
+      // Atualiza o campo inCollection para cada vídeo
+      const videosWithCollectionStatus = videos.map(video => ({
+        ...video,
+        inCollection: videoIdsInCollections.has(video.id)
+      }));
+      
+      res.json(videosWithCollectionStatus);
     } catch (error: any) {
       console.error("Error listing videos:", error);
       res.status(500).json({ error: "Failed to list videos", details: error.message });
