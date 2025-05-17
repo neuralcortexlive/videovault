@@ -130,7 +130,10 @@ export function useAddVideoToCollection() {
   return useMutation({
     mutationFn: async ({ videoId, collectionId }: { videoId: number, collectionId: number }) => {
       const response = await fetch(`/api/collections/${collectionId}/videos/${videoId}`, {
-        method: "POST"
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
       if (!response.ok) {
@@ -142,6 +145,9 @@ export function useAddVideoToCollection() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ 
         queryKey: ["/api/collections", variables.collectionId, "videos"] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/library"] 
       });
     }
   });

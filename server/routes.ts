@@ -378,7 +378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Atualiza o campo inCollection para cada vídeo
       const videosWithCollectionStatus = videos.map(video => ({
         ...video,
-        inCollection: videoIdsInCollections.has(video.id)
+        inCollection: videoIdsInCollections.has(video.videoId)
       }));
       
       res.json(videosWithCollectionStatus);

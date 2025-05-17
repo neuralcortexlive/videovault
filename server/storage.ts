@@ -116,7 +116,8 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(videos.downloaded, true),
-            eq(videos.deleted, false)
+            eq(videos.deleted, false),
+            eq(videos.inCollection, false)
           )
         )
         .orderBy(desc(videos.createdAt))
@@ -255,11 +256,17 @@ export class DatabaseStorage implements IStorage {
   // Video-Collection operations
   async addVideoToCollection(videoId: number, collectionId: number): Promise<VideoCollection> {
     try {
-      // Primeiro, adiciona o vídeo à coleção
-      const videoCollection = await db
+      // Primeiro, obtém o vídeo para pegar o video_id
+      const video = await this.getVideo(videoId);
+      if (!video) {
+        throw new Error("Video not found");
+      }
+
+      // Adiciona o vídeo à coleção usando o video_id
+      const [videoCollection] = await db
         .insert(videoCollections)
         .values({
-          videoId,
+          videoId: video.videoId,
           collectionId,
           addedAt: new Date()
         })
@@ -272,9 +279,9 @@ export class DatabaseStorage implements IStorage {
           inCollection: true,
           updatedAt: new Date()
         })
-        .where(eq(videos.id, videoId));
+        .where(eq(videos.videoId, video.videoId));
 
-      return videoCollection[0];
+      return videoCollection;
     } catch (error) {
       console.error("Error adding video to collection:", error);
       throw error;
@@ -283,12 +290,18 @@ export class DatabaseStorage implements IStorage {
 
   async removeVideoFromCollection(videoId: number, collectionId: number): Promise<boolean> {
     try {
+      // Primeiro, obtém o vídeo para pegar o video_id
+      const video = await this.getVideo(videoId);
+      if (!video) {
+        throw new Error("Video not found");
+      }
+
       // Remove o vídeo da coleção
       const deletedItems = await db
         .delete(videoCollections)
         .where(
           and(
-            eq(videoCollections.videoId, videoId),
+            eq(videoCollections.videoId, video.videoId),
             eq(videoCollections.collectionId, collectionId)
           )
         )
@@ -298,18 +311,18 @@ export class DatabaseStorage implements IStorage {
       const remainingCollections = await db
         .select()
         .from(videoCollections)
-        .where(eq(videoCollections.videoId, videoId));
+        .where(eq(videoCollections.videoId, video.videoId));
 
       // Se não estiver em nenhuma outra coleção, atualiza inCollection para false
       if (remainingCollections.length === 0) {
-        console.log('Atualizando inCollection para false para o vídeo:', videoId);
+        console.log('Atualizando inCollection para false para o vídeo:', video.videoId);
         await db
           .update(videos)
           .set({ 
             inCollection: false,
             updatedAt: new Date()
           })
-          .where(eq(videos.id, videoId));
+          .where(eq(videos.videoId, video.videoId));
       }
 
       return deletedItems.length > 0;
@@ -335,7 +348,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(videos)
-      .where(inArray(videos.id, videoIds.map(v => v.videoId)))
+      .where(inArray(videos.videoId, videoIds.map(v => v.videoId)))
       .orderBy(desc(videos.createdAt));
   }
 

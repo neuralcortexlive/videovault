@@ -123,7 +123,7 @@ export type Collection = typeof collections.$inferSelect;
 
 // Tabela de associação entre vídeos e coleções
 export const videoCollections = pgTable("video_collections", {
-  videoId: integer("video_id").notNull().references(() => videos.id, { onDelete: 'cascade' }),
+  videoId: text("video_id").notNull().references(() => videos.videoId, { onDelete: 'cascade' }),
   collectionId: integer("collection_id").notNull().references(() => collections.id, { onDelete: 'cascade' }),
   addedAt: timestamp("added_at").defaultNow(),
 }, (t) => ({
@@ -133,7 +133,7 @@ export const videoCollections = pgTable("video_collections", {
 export const videoCollectionsRelations = relations(videoCollections, ({ one }) => ({
   video: one(videos, {
     fields: [videoCollections.videoId],
-    references: [videos.id]
+    references: [videos.videoId]
   }),
   collection: one(collections, {
     fields: [videoCollections.collectionId],
