@@ -971,6 +971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           // Deletar o arquivo de vídeo
           if (fs.existsSync(video.filepath)) {
+            console.log("Deletando arquivo de vídeo:", video.filepath);
             fs.unlinkSync(video.filepath);
           }
 
@@ -985,6 +986,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } catch (error) {
           console.error("Erro ao deletar arquivos do vídeo:", error);
+          // Não falhar a operação se houver erro ao deletar os arquivos
         }
       }
 
@@ -992,7 +994,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateVideo(id, {
         downloaded: false,
         deleted: true,
-        deletedAt: new Date()
+        deletedAt: new Date(),
+        filepath: null // Limpar o caminho do arquivo
       });
 
       res.json({ success: true, message: "Vídeo deletado com sucesso" });

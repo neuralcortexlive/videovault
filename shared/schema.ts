@@ -33,6 +33,8 @@ export const videos = pgTable("videos", {
   inCollection: boolean("in_collection").notNull().default(false),
   deleted: boolean("deleted").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
+  filepath: text("filepath"),
+  filesize: integer("filesize"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow()
 });
