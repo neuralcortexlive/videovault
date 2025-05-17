@@ -30,7 +30,6 @@ export const videos = pgTable("videos", {
   likeCount: integer("like_count"),
   commentCount: integer("comment_count"),
   downloaded: boolean("downloaded").notNull().default(false),
-  downloadPath: text("download_path"),
   inCollection: boolean("in_collection").notNull().default(false),
   deleted: boolean("deleted").notNull().default(false),
   deletedAt: timestamp("deleted_at"),

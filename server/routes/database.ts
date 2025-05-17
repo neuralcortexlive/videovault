@@ -22,7 +22,7 @@ router.get("/stats", async (req, res) => {
       storage.listBatchDownloads(10000, 0),
       storage.getVideoCollections(),
       storage.getQualityPresets(),
-      storage.getBatchDownloadItems(),
+      storage.getBatchDownloadItems(0),
       storage.getApiConfigs()
     ]);
 
@@ -114,8 +114,7 @@ router.delete("/clear/downloads", async (req, res) => {
 // Limpar coleções
 router.delete("/clear/collections", async (req, res) => {
   try {
-    const collections = await storage.listCollections();
-    await Promise.all(collections.map(collection => storage.deleteCollection(collection.id)));
+    await storage.deleteAllCollections();
     res.json({ message: "Coleções apagadas com sucesso" });
   } catch (error) {
     console.error("Erro ao apagar coleções:", error);
@@ -126,7 +125,7 @@ router.delete("/clear/collections", async (req, res) => {
 // Limpar downloads em lote
 router.delete("/clear/batchDownloads", async (req, res) => {
   try {
-    const batches = await storage.listBatchDownloads();
+    const batches = await storage.listBatchDownloads(10000, 0);
     await Promise.all(batches.map(batch => storage.deleteBatchDownload(batch.id)));
     res.json({ message: "Downloads em lote apagados com sucesso" });
   } catch (error) {
@@ -149,8 +148,7 @@ router.delete("/clear/videoCollections", async (req, res) => {
 // Limpar presets de qualidade
 router.delete("/clear/qualityPresets", async (req, res) => {
   try {
-    const presets = await storage.listQualityPresets();
-    await Promise.all(presets.map(preset => storage.deleteQualityPreset(preset.id)));
+    await storage.deleteAllQualityPresets();
     res.json({ message: "Presets de qualidade apagados com sucesso" });
   } catch (error) {
     console.error("Erro ao apagar presets de qualidade:", error);
