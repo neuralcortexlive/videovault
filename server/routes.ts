@@ -153,8 +153,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           viewCount: videoDetails.viewCount,
           likeCount: videoDetails.likeCount,
           downloaded: false,
-          format: format || "mp4",
-          quality: quality || "best",
         });
       }
 
@@ -466,6 +464,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid collection ID" });
+      }
+      
+      // Verificar se a coleção possui vídeos
+      const videos = await storage.getVideosInCollection(id);
+      if (videos.length > 0) {
+        return res.status(400).json({ error: "Não é possível deletar uma coleção que contém vídeos" });
       }
       
       const success = await storage.deleteCollection(id);
@@ -1064,8 +1068,6 @@ async function processBatch(batchId: number): Promise<void> {
               viewCount: videoDetails.viewCount,
               likeCount: videoDetails.likeCount,
               downloaded: false,
-              format: preset?.format || "mp4",
-              quality: preset?.videoQuality || "720p",
             });
           } catch (error: any) {
             console.error(`Failed to get details for video ${item.videoId}:`, error);
@@ -1083,7 +1085,6 @@ async function processBatch(batchId: number): Promise<void> {
           title: video.title,
           status: "pending",
           progress: 0,
-          format: preset?.format || "mp4",
         });
         
         // Update batch item with download ID
